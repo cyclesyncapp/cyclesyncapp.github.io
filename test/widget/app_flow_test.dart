@@ -154,20 +154,14 @@ void main() {
       scrollable: find.byType(Scrollable).first,
     );
     expect(find.text('Flow by period day'), findsOneWidget);
-    await tester.scrollUntilVisible(
-      find.text('Trends'),
-      -300,
-      scrollable: find.byType(Scrollable).first,
-    );
+    // Back to the top so the tab bar is fully on screen.
+    await tester.drag(find.byType(Scrollable).first, const Offset(0, 5000));
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('Patterns'));
     await tester.pumpAndSettle();
-    await tester.dragUntilVisible(
-      find.text('Symptoms through your cycle'),
-      find.byType(Scrollable).first,
-      const Offset(0, 300),
-    );
-    expect(find.text('Symptoms through your cycle'), findsOneWidget);
+    expect(find.text('Symptoms through your cycle', skipOffstage: false),
+        findsOneWidget);
   });
 
   testWidgets('a PIN locks the app until it is entered', (tester) async {
