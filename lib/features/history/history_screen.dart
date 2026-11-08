@@ -6,6 +6,8 @@ import 'package:intl/intl.dart' show DateFormat;
 import '../../core/providers.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/common.dart';
+import '../../data/repositories/cycle_repository.dart';
+import '../../domain/cycle_calculator.dart';
 import '../../domain/dates.dart';
 import '../../domain/models.dart';
 import '../../routing/app_router.dart';
@@ -57,6 +59,9 @@ class HistoryScreen extends ConsumerWidget {
                       _PeriodRow(
                         period: ps[i],
                         today: s.today,
+                        gapBefore: i + 1 < ps.length
+                            ? daysBetween(ps[i + 1].start, ps[i].start)
+                            : null,
                         cycleLength: i == 0
                             ? null
                             : daysBetween(ps[i].start, ps[i - 1].start),
@@ -81,7 +86,7 @@ class HistoryScreen extends ConsumerWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Average cycle length',
+                          Text('Usual cycle length',
                               style: context.text.bodyMedium),
                           Text(
                             s.stats.averageCycle == null
@@ -90,7 +95,7 @@ class HistoryScreen extends ConsumerWidget {
                             style: context.text.titleLarge,
                           ),
                           const SizedBox(height: 8),
-                          Text('Average period length',
+                          Text('Usual period length',
                               style: context.text.bodyMedium),
                           Text(
                             s.stats.averagePeriod == null
@@ -106,8 +111,9 @@ class HistoryScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 10),
               Text(
-                'Averages appear after 3 cycles (or 3 periods with an end date). '
-                'Cycle length runs from one period start to the next.',
+                'Averages (the usual value) appear after 3 cycles, or 3 periods '
+                'with an end date. Cycle length runs from one period start to '
+                'the next.',
                 style: context.text.bodySmall
                     ?.copyWith(color: context.cycle.muted),
               ),
@@ -119,21 +125,88 @@ class HistoryScreen extends ConsumerWidget {
   }
 }
 
-class _PeriodRow extends StatelessWidget {
+class _PeriodRow extends ConsumerWidget {
   const _PeriodRow({
     required this.period,
     required this.today,
     required this.cycleLength,
     required this.label,
+    this.gapBefore,
   });
 
   final Period period;
   final DateTime today;
   final int? cycleLength;
   final String label;
+  final int? gapBefore;
+
+  Future<void> _answer(WidgetRef ref, BuildContext context, bool? v) async {
+    try {
+      await ref.read(repositoryProvider).setGapIsCycle(period.id, v);
+      ref.invalidate(periodsProvider);
+    } on AppException catch (e) {
+      if (context.mounted) showMessage(context, e.message);
+    }
+  }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final gap = gapBefore;
+    final row = _tile(context);
+    if (gap == null || gap <= CycleCalculator.maxValidCycle) return row;
+    final answer = period.gapIsCycle;
+    return Column(
+      children: [
+        row,
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: context.cycle.softLavenderCard,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  answer == null
+                      ? 'There were $gap days before this period. Was that a '
+                          'real cycle, or did you miss logging?'
+                      : answer
+                          ? '$gap-day gap counted as a real cycle.'
+                          : '$gap-day gap treated as missed logging.',
+                  style: context.text.bodySmall,
+                ),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    if (answer != true)
+                      OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                            minimumSize: const Size(0, 36)),
+                        onPressed: () => _answer(ref, context, true),
+                        child: const Text('Real cycle'),
+                      ),
+                    if (answer != false)
+                      OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                            minimumSize: const Size(0, 36)),
+                        onPressed: () => _answer(ref, context, false),
+                        child: const Text('Missed logging'),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _tile(BuildContext context) {
     final duration = period.durationDays;
     final trailing = duration != null
         ? '$duration day${duration == 1 ? '' : 's'}'

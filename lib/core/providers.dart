@@ -10,6 +10,7 @@ import '../domain/dates.dart';
 import '../domain/models.dart';
 import '../domain/reminder_planner.dart';
 import 'constants/app_text.dart';
+import 'platform/platform_actions.dart';
 
 /// Data access. Overridden with a fake in tests.
 final repositoryProvider = Provider<CycleRepository>((ref) {
@@ -61,7 +62,9 @@ final summaryProvider = FutureProvider<CycleSummary>((ref) async {
     today: ref.watch(todayProvider),
     typicalCycleLength: profile?.typicalCycleLength,
     typicalPeriodLength: profile?.typicalPeriodLength,
-    includeFertileWindow: profile?.showFertileWindow ?? false,
+    includeFertileWindow: (profile?.showFertileWindow ?? false) &&
+        (profile?.fertileWindowAllowed ?? true),
+    pausePredictions: profile?.lifeStage.paused ?? false,
   );
 });
 
@@ -83,7 +86,11 @@ final reminderSyncProvider = FutureProvider<void>((ref) async {
       : const <PlannedReminder>[];
   if (kIsWeb) {
     try {
-      await ref.read(repositoryProvider).replaceScheduledPushes(planned);
+      // Only keep server reminders while this browser has notifications on.
+      final subscribed = await currentWebPushEndpoint() != null;
+      await ref
+          .read(repositoryProvider)
+          .replaceScheduledPushes(subscribed ? planned : const []);
     } catch (_) {
       // Web push tables not set up yet; in-app reminders still work.
     }

@@ -21,7 +21,13 @@ import 'insights_charts.dart';
 final insightsProvider = FutureProvider<Insights>((ref) async {
   final summary = await ref.watch(summaryProvider.future);
   final logs = await ref.watch(logsProvider.future);
-  return InsightsEngine.analyze(summary: summary, logs: logs);
+  final profile = await ref.watch(profileProvider.future);
+  return InsightsEngine.analyze(
+    summary: summary,
+    logs: logs,
+    contraception: profile?.contraception,
+    lifeStage: profile?.lifeStage ?? LifeStage.cycling,
+  );
 });
 
 class InsightsScreen extends ConsumerStatefulWidget {
@@ -254,13 +260,7 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
 
   List<Widget> _trends(BuildContext context, CycleSummary s, Insights ins) {
     final oldestFirst = CycleCalculator.sortedByStart(s.periods);
-    final points = <(DateTime, int)>[];
-    for (var i = 1; i < oldestFirst.length; i++) {
-      final len = daysBetween(oldestFirst[i - 1].start, oldestFirst[i].start);
-      if (CycleCalculator.isValidInterval(len)) {
-        points.add((oldestFirst[i - 1].start, len));
-      }
-    }
+    final points = s.stats.validPoints;
     final recent =
         points.length > 8 ? points.sublist(points.length - 8) : points;
     final durations = [
@@ -395,7 +395,8 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
       const SizedBox(height: 10),
       Text(
         'Charts use only what you have logged. Gaps shorter than 15 or longer '
-        'than 60 days are left out. The 21–35 day band is a commonly cited '
+        'than 60 days are left out unless you confirm they were real cycles. '
+        'The 21–35 day band is a commonly cited '
         'range for adults, shown for context only.',
         style: context.text.bodySmall?.copyWith(color: context.cycle.muted),
       ),
@@ -481,14 +482,16 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
     ];
   }
 
-  String _peakSentence(
-      String what, ({DayBucket bucket, int count, int total})? p) {
+  String _peakSentence(String what,
+      ({DayBucket bucket, int count, int total, int cycleCount})? p) {
     if (p == null) return '';
     final pct = (p.count / p.total * 100).round();
-    final days = p.bucket.to == null
-        ? 'from cycle day ${p.bucket.from}'
-        : 'on cycle days ${p.bucket.label}';
-    return '$what: $pct% of your logs were $days (${p.count} of ${p.total}).';
+    final where = p.bucket.phrase.startsWith('cycle')
+        ? 'on ${p.bucket.phrase}'
+        : p.bucket.phrase;
+    return '$what: $pct% of your logs were $where '
+        '(${p.count} of ${p.total}, across ${p.cycleCount} '
+        'cycle${p.cycleCount == 1 ? '' : 's'}).';
   }
 
   // ------------------------------------------------------------ About

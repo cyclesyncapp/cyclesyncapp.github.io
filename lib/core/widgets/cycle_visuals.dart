@@ -45,7 +45,8 @@ enum DayMark { none, period, predictedPeriod, fertile, ovulation }
 DayMark markFor(CycleSummary s, DateTime day) {
   if (s.periodOn(day) != null) return DayMark.period;
   if (s.predictedPeriodDays.contains(day)) return DayMark.predictedPeriod;
-  if (s.ovulationDays.contains(day)) return DayMark.ovulation;
+  // A single "ovulation day" implies more certainty than a calendar estimate
+  // has, so only the fertile window is shown.
   if (s.fertileDays.contains(day)) return DayMark.fertile;
   return DayMark.none;
 }

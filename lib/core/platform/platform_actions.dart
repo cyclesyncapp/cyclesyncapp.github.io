@@ -18,6 +18,22 @@ Future<void> saveTextFile({
 }) =>
     impl.saveTextFile(fileName: fileName, content: content, mimeType: mimeType);
 
+/// Saves a binary file (e.g. PDF): download on web, share sheet on Android.
+Future<void> saveBytesFile({
+  required String fileName,
+  required List<int> bytes,
+  required String mimeType,
+}) =>
+    impl.saveBytesFile(fileName: fileName, bytes: bytes, mimeType: mimeType);
+
+/// True inside an app's built-in browser (WhatsApp, Facebook, Instagram).
+bool isInAppBrowser() => impl.isInAppBrowser();
+
+/// Remembers, for this browser tab session only, that the user is signed in.
+/// Used for "sign me out when I close the app".
+void markTabSession() => impl.markTabSession();
+bool hasTabSession() => impl.hasTabSession();
+
 /// Current web-push status for this browser.
 Future<WebPushState> webPushState() => impl.webPushState();
 

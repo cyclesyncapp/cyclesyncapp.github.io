@@ -5,12 +5,14 @@ import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../core/constants/app_text.dart';
+import '../../core/lock/app_lock.dart';
 import '../../core/platform/platform_actions.dart';
 import '../../core/providers.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/common.dart';
 import '../../core/widgets/inputs.dart';
 import '../../data/repositories/cycle_repository.dart';
+import '../../data/services/doctor_report.dart';
 import '../../domain/csv_export.dart';
 import '../../routing/app_router.dart';
 
@@ -110,17 +112,28 @@ class SettingsScreen extends ConsumerWidget {
                 tile(Icons.calendar_month_outlined, 'Cycle Settings',
                     () => context.push(AppRoutes.cycleSettings),
                     color: context.colors.secondary),
+                tile(Icons.favorite_outline, 'Health Profile',
+                    () => context.push(AppRoutes.healthProfile),
+                    subtitle: profile == null
+                        ? null
+                        : [
+                            profile.lifeStage.label,
+                            if (profile.contraception != null)
+                              profile.contraception!.label,
+                          ].join(' · ')),
                 tile(Icons.notifications_none, 'Notifications & Reminders',
                     () => context.push(AppRoutes.notifications),
                     color: const Color(0xFFE8833A)),
                 tile(Icons.history, 'Period History',
                     () => context.push(AppRoutes.history)),
-                tile(Icons.lock_outline, 'Privacy & Security',
+                tile(Icons.pin_outlined, 'App Lock',
+                    () => context.push(AppRoutes.appLock),
+                    color: const Color(0xFFD4A017),
+                    subtitle: ref.watch(lockProvider).enabled ? 'On' : 'Off'),
+                tile(Icons.lock_outline, 'Privacy, Export & Delete',
                     () => context.push(AppRoutes.privacySettings),
-                    color: const Color(0xFFD4A017)),
-                tile(Icons.download_outlined, 'Export My Data',
-                    () => context.push(AppRoutes.privacySettings),
-                    color: const Color(0xFF2E9E6E)),
+                    color: const Color(0xFF2E9E6E),
+                    subtitle: 'CSV export, doctor summary, delete account'),
               ],
             ),
           ),
@@ -344,6 +357,7 @@ class _CycleSettingsScreenState extends ConsumerState<CycleSettingsScreen> {
       _fertile = p?.showFertileWindow ?? false;
       _loaded = true;
     }
+    final fertileAllowed = profile.value?.fertileWindowAllowed ?? true;
     return GradientScaffold(
       title: 'Cycle Settings',
       body: !_loaded
@@ -403,13 +417,16 @@ class _CycleSettingsScreenState extends ConsumerState<CycleSettingsScreen> {
                 SoftCard(
                   padding: const EdgeInsets.symmetric(vertical: 4),
                   child: SwitchListTile(
-                    value: _fertile,
-                    onChanged: _toggleFertile,
+                    value: _fertile && fertileAllowed,
+                    onChanged: fertileAllowed ? _toggleFertile : null,
                     secondary: Icon(Icons.spa_outlined,
                         color: context.cycle.fertile),
                     title: const Text('Show estimated fertile window'),
-                    subtitle: const Text(
-                        'Off by default. A rough calendar estimate only.'),
+                    subtitle: Text(fertileAllowed
+                        ? 'Off by default. Needs 3 logged cycles. A rough '
+                            'calendar estimate only.'
+                        : 'Not shown with hormonal contraception or while '
+                            'estimates are paused (see Health Profile).'),
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -442,9 +459,44 @@ class PrivacySettingsScreen extends ConsumerStatefulWidget {
 
 class _PrivacySettingsScreenState extends ConsumerState<PrivacySettingsScreen> {
   bool _exporting = false;
+  bool _reporting = false;
   bool _deleting = false;
 
+  Future<void> _report() async {
+    setState(() => _reporting = true);
+    try {
+      final summary = await ref.read(summaryProvider.future);
+      final logs = await ref.read(logsProvider.future);
+      final profile = await ref.read(profileProvider.future);
+      final today = ref.read(todayProvider);
+      final bytes = await buildDoctorReport(
+        summary: summary,
+        logs: logs,
+        today: today,
+        profile: profile,
+      );
+      await saveBytesFile(
+        fileName: doctorReportFileName(today),
+        bytes: bytes,
+        mimeType: 'application/pdf',
+      );
+    } catch (_) {
+      if (mounted) showMessage(context, "Couldn't create the summary.");
+    } finally {
+      if (mounted) setState(() => _reporting = false);
+    }
+  }
+
   Future<void> _export() async {
+    final ok = await confirmDialog(
+      context,
+      title: 'Export your data?',
+      message: 'The file includes your period dates, symptoms, moods and '
+          'notes. It is not password-protected: anyone who can open your '
+          'Downloads or the app you share it to can read it.',
+      confirmLabel: 'Export',
+    );
+    if (!ok || !mounted) return;
     setState(() => _exporting = true);
     final repo = ref.read(repositoryProvider);
     try {
@@ -502,9 +554,9 @@ class _PrivacySettingsScreenState extends ConsumerState<PrivacySettingsScreen> {
                 const SizedBox(width: 14),
                 Expanded(
                   child: Text(
-                    'Your records are private to your account, protected by '
-                    'database security rules and sent only over HTTPS. We '
-                    'never sell or share them for advertising.',
+                    'Only you can see your records. They are stored with our '
+                    'provider, Supabase, in Europe, sent only over HTTPS, and '
+                    'never sold or shared for advertising.',
                     style: context.text.bodyMedium,
                   ),
                 ),
@@ -523,6 +575,20 @@ class _PrivacySettingsScreenState extends ConsumerState<PrivacySettingsScreen> {
                   onTap: () => context.push(AppRoutes.privacy),
                 ),
                 ListTile(
+                  leading: const Icon(Icons.local_hospital_outlined),
+                  title: const Text('Doctor-visit summary (PDF)'),
+                  subtitle: const Text(
+                      'Cycle and period lengths, heavy days, pain, symptoms'),
+                  trailing: _reporting
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.chevron_right),
+                  onTap: _reporting ? null : _report,
+                ),
+                ListTile(
                   leading: const Icon(Icons.download_outlined),
                   title: const Text('Export my data (CSV)'),
                   subtitle: const Text('Periods and daily logs'),
@@ -537,6 +603,12 @@ class _PrivacySettingsScreenState extends ConsumerState<PrivacySettingsScreen> {
                 ),
               ],
             ),
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: () => context.push(AppRoutes.appLock),
+            icon: const Icon(Icons.pin_outlined),
+            label: const Text('App lock and sign-out options'),
           ),
           const SectionTitle('Delete account'),
           Text(

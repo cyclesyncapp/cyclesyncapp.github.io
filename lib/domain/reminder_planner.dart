@@ -2,7 +2,7 @@ import 'cycle_calculator.dart';
 import 'dates.dart';
 import 'models.dart';
 
-enum ReminderKind { period, fertile, daily }
+enum ReminderKind { period, fertile, daily, pill, injection }
 
 class PlannedReminder {
   const PlannedReminder({
@@ -90,6 +90,48 @@ class ReminderPlanner {
         repeatsDaily: true,
       ));
     }
+    if (prefs.pillReminderEnabled) {
+      var at = DateTime(
+          now.year, now.month, now.day, prefs.pillHour, prefs.pillMinute);
+      if (!at.isAfter(now)) {
+        at = DateTime(now.year, now.month, now.day + 1, prefs.pillHour,
+            prefs.pillMinute);
+      }
+      out.add(PlannedReminder(
+        id: 4,
+        kind: ReminderKind.pill,
+        at: at,
+        title: neutralTitle,
+        body: body('Time for your pill.'),
+        repeatsDaily: true,
+      ));
+    }
+
+    final due = prefs.injectionDue;
+    if (prefs.injectionReminderEnabled && due != null) {
+      final weekBefore = addDays(due, -7);
+      final atWeek = DateTime(
+          weekBefore.year, weekBefore.month, weekBefore.day, morningHour);
+      if (atWeek.isAfter(now)) {
+        out.add(PlannedReminder(
+          id: 5,
+          kind: ReminderKind.injection,
+          at: atWeek,
+          title: neutralTitle,
+          body: body('Your contraceptive injection is due in 7 days.'),
+        ));
+      }
+      final atDue = DateTime(due.year, due.month, due.day, morningHour);
+      if (atDue.isAfter(now)) {
+        out.add(PlannedReminder(
+          id: 6,
+          kind: ReminderKind.injection,
+          at: atDue,
+          title: neutralTitle,
+          body: body('Your contraceptive injection is due today.'),
+        ));
+      }
+    }
     return out;
   }
 
@@ -118,6 +160,19 @@ class ReminderPlanner {
         window != null &&
         sameDate(window.start, summary.today)) {
       notices.add('Your estimated fertile window starts today.');
+    }
+    final due = prefs.injectionDue;
+    if (prefs.injectionReminderEnabled && due != null) {
+      final days = daysBetween(summary.today, due);
+      if (days >= 0 && days <= 7) {
+        notices.add(days == 0
+            ? 'Your contraceptive injection is due today.'
+            : 'Your contraceptive injection is due in $days day${days == 1 ? '' : 's'}.');
+      } else if (days < 0 && days >= -28) {
+        notices.add('Your contraceptive injection was due ${-days} '
+            'day${days == -1 ? '' : 's'} ago. Update the date in Reminders '
+            'once you have had it.');
+      }
     }
     if (prefs.dailyReminderEnabled && !loggedToday) {
       final due = DateTime(

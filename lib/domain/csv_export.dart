@@ -5,8 +5,8 @@ import 'models.dart';
 class CsvExport {
   const CsvExport._();
 
-  static const header =
-      'record_type,date,end_date,flow,symptoms,mood,notes';
+  static const header = 'record_type,date,end_date,flow,symptoms,mood,'
+      'pain,pain_stopped_activities,very_heavy,notes';
 
   static String build({
     required List<Period> periods,
@@ -22,6 +22,9 @@ class CsvExport {
         '',
         '',
         '',
+        '',
+        '',
+        '',
         p.notes ?? '',
       ].map(escape).join(','));
     }
@@ -34,6 +37,9 @@ class CsvExport {
         l.flow.db,
         l.symptoms.map((s) => s.db).join(';'),
         l.moods.map((m) => m.db).join(';'),
+        l.pain == null ? '' : '${l.pain}',
+        l.painDisrupted ? 'yes' : '',
+        l.heavySoaked ? 'yes' : '',
         l.notes ?? '',
       ].map(escape).join(','));
     }

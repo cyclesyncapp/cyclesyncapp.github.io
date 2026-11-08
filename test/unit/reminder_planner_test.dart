@@ -5,16 +5,19 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   final today = DateTime.utc(2026, 11, 8);
+  // Starts 9 Aug, 6 Sep, 4 Oct, 1 Nov (28-day cycles, 5-day periods).
   final summary = CycleCalculator.summarize(
     periods: [
-      Period(
-          id: 'a',
-          start: DateTime.utc(2026, 11, 1),
-          end: DateTime.utc(2026, 11, 5)),
+      for (final s in [
+        DateTime.utc(2026, 8, 9),
+        DateTime.utc(2026, 9, 6),
+        DateTime.utc(2026, 10, 4),
+        DateTime.utc(2026, 11, 1),
+      ])
+        Period(
+            id: '$s', start: s, end: s.add(const Duration(days: 4))),
     ],
     today: today,
-    typicalCycleLength: 28,
-    typicalPeriodLength: 5,
     includeFertileWindow: true,
   );
   final now = DateTime(2026, 11, 8, 10, 0);
@@ -97,5 +100,35 @@ void main() {
     expect(notices, hasLength(2));
     expect(notices.first, contains('2 days'));
     expect(notices.last, contains("haven't checked in"));
+  });
+
+  test('pill reminder repeats daily at the chosen time', () {
+    final plan = ReminderPlanner.plan(
+      prefs: const ReminderPrefs(
+          pillReminderEnabled: true, pillHour: 21, pillMinute: 30),
+      summary: summary,
+      now: now,
+    );
+    expect(plan.single.kind, ReminderKind.pill);
+    expect(plan.single.at, DateTime(2026, 11, 8, 21, 30));
+    expect(plan.single.repeatsDaily, isTrue);
+    expect(plan.single.body, ReminderPlanner.neutralBody);
+  });
+
+  test('injection reminders a week before and on the due day', () {
+    final plan = ReminderPlanner.plan(
+      prefs: ReminderPrefs(
+        injectionReminderEnabled: true,
+        injectionLastDate: DateTime.utc(2026, 9, 1),
+        injectionIntervalWeeks: 12,
+      ),
+      summary: summary,
+      now: now,
+    );
+    // due 24 Nov 2026
+    expect(plan.map((r) => r.at), [
+      DateTime(2026, 11, 17, 9),
+      DateTime(2026, 11, 24, 9),
+    ]);
   });
 }

@@ -56,6 +56,10 @@ abstract class CycleRepository {
   });
   Future<void> deletePeriod(String id);
 
+  /// Answer for an unusually long gap before period [id]:
+  /// true = real cycle, false = missed logging, null = unanswered.
+  Future<void> setGapIsCycle(String id, bool? value);
+
   Future<List<DailyLog>> fetchLogs();
   Future<void> saveLog(DailyLog log);
   Future<void> deleteLog(String id);
@@ -251,7 +255,7 @@ class SupabaseCycleRepository implements CycleRepository {
   Future<List<Period>> fetchPeriods() => _guardData(() async {
         final rows = await _client
             .from('periods')
-            .select('id, start_date, end_date, notes')
+            .select('id, start_date, end_date, notes, gap_is_cycle')
             .eq('user_id', _uid)
             .order('start_date', ascending: false);
         return [for (final r in rows) Period.fromRow(r)];
@@ -284,10 +288,18 @@ class SupabaseCycleRepository implements CycleRepository {
       });
 
   @override
+  Future<void> setGapIsCycle(String id, bool? value) => _guardData(() async {
+        await _client
+            .from('periods')
+            .update({'gap_is_cycle': value}).eq('id', id);
+      });
+
+  @override
   Future<List<DailyLog>> fetchLogs() => _guardData(() async {
         final rows = await _client
             .from('daily_logs')
-            .select('id, log_date, flow, symptoms, mood, notes')
+            .select(
+                'id, log_date, flow, symptoms, mood, notes, pain, pain_disrupted, heavy_soaked')
             .eq('user_id', _uid)
             .order('log_date', ascending: false);
         return [for (final r in rows) DailyLog.fromRow(r)];
@@ -368,18 +380,15 @@ class SupabaseCycleRepository implements CycleRepository {
   @override
   Future<void> replaceScheduledPushes(List<PlannedReminder> reminders) =>
       _guardData(() async {
-        await _client.from('scheduled_pushes').delete().eq('user_id', _uid);
-        if (reminders.isEmpty) return;
-        await _client.from('scheduled_pushes').insert([
-          for (final r in reminders)
-            {
-              'user_id': _uid,
-              'kind': r.kind.name,
-              'send_at': r.at.toUtc().toIso8601String(),
-              'title': r.title,
-              'body': r.body,
-              'repeats_daily': r.repeatsDaily,
-            },
-        ]);
+        // Only times are sent; the server always stores neutral text.
+        await _client.rpc('replace_my_scheduled_pushes', params: {
+          'items': [
+            for (final r in reminders)
+              {
+                'send_at': r.at.toUtc().toIso8601String(),
+                'repeats_daily': r.repeatsDaily,
+              },
+          ],
+        });
       });
 }

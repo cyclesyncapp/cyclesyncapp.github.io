@@ -32,6 +32,17 @@ class _LogDayScreenState extends ConsumerState<LogDayScreen> {
   String? _existingId;
   bool _loaded = false;
   bool _saving = false;
+  int? _pain;
+  bool _painDisrupted = false;
+  bool _heavySoaked = false;
+
+  /// Unsaved changes since the log for this date was loaded.
+  bool _dirty = false;
+
+  void _change(VoidCallback fn) => setState(() {
+        fn();
+        _dirty = true;
+      });
 
   @override
   void initState() {
@@ -57,10 +68,24 @@ class _LogDayScreenState extends ConsumerState<LogDayScreen> {
       ..clear()
       ..addAll(log?.moods ?? const []);
     _notes.text = log?.notes ?? '';
+    _pain = log?.pain;
+    _painDisrupted = log?.painDisrupted ?? false;
+    _heavySoaked = log?.heavySoaked ?? false;
     _loaded = true;
+    _dirty = false;
   }
 
   Future<void> _changeDate(DateTime d) async {
+    if (_dirty) {
+      final discard = await confirmDialog(
+        context,
+        title: 'Discard changes?',
+        message: 'You have unsaved changes for this day.',
+        confirmLabel: 'Discard',
+        destructive: true,
+      );
+      if (!discard || !mounted) return;
+    }
     final logs = await ref.read(logsByDateProvider.future);
     if (!mounted) return;
     setState(() {
@@ -77,6 +102,9 @@ class _LogDayScreenState extends ConsumerState<LogDayScreen> {
       symptoms: Symptom.values.where(_symptoms.contains).toList(),
       moods: Mood.values.where(_moods.contains).toList(),
       notes: _notes.text,
+      pain: _pain,
+      painDisrupted: _painDisrupted,
+      heavySoaked: _flow == FlowLevel.heavy && _heavySoaked,
     );
     setState(() => _saving = true);
     final repo = ref.read(repositoryProvider);
@@ -143,6 +171,9 @@ class _LogDayScreenState extends ConsumerState<LogDayScreen> {
     final today = ref.watch(todayProvider);
 
     if (!_loaded && logs.hasValue) _loadFrom(logs.value![_date]);
+    final perimenopause = ref.watch(profileProvider).value?.lifeStage ==
+        LifeStage.perimenopause;
+    final narrow = MediaQuery.sizeOf(context).width < 380;
 
     return GradientScaffold(
       title: 'Log Symptoms',
@@ -167,7 +198,7 @@ class _LogDayScreenState extends ConsumerState<LogDayScreen> {
                 ),
                 const SectionTitle('Flow level'),
                 _grid(
-                  columns: 5,
+                  columns: narrow ? 3 : 5,
                   children: [
                     for (final f in FlowLevel.values)
                       ChoiceTile(
@@ -177,10 +208,41 @@ class _LogDayScreenState extends ConsumerState<LogDayScreen> {
                         color: f == FlowLevel.none
                             ? context.cycle.muted
                             : context.cycle.period,
-                        onTap: () => setState(() => _flow = f),
+                        onTap: () => _change(() => _flow = f),
                       ),
                   ],
                 ),
+                if (_flow == FlowLevel.heavy)
+                  CheckboxListTile(
+                    value: _heavySoaked,
+                    onChanged: (v) => _change(() => _heavySoaked = v ?? false),
+                    controlAffinity: ListTileControlAffinity.leading,
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text(
+                        'Soaked through protection within 1–2 hours, or passed '
+                        'large clots'),
+                  ),
+                const SectionTitle('Pain'),
+                SegmentedButton<int>(
+                  segments: [
+                    for (var i = 0; i < painLabels.length; i++)
+                      ButtonSegment(value: i, label: Text(painLabels[i])),
+                  ],
+                  emptySelectionAllowed: true,
+                  selected: {if (_pain != null) _pain!},
+                  showSelectedIcon: false,
+                  onSelectionChanged: (v) =>
+                      _change(() => _pain = v.isEmpty ? null : v.first),
+                ),
+                if ((_pain ?? 0) > 0)
+                  CheckboxListTile(
+                    value: _painDisrupted,
+                    onChanged: (v) =>
+                        _change(() => _painDisrupted = v ?? false),
+                    controlAffinity: ListTileControlAffinity.leading,
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Pain stopped my usual activities'),
+                  ),
                 const SectionTitle('How are you feeling?'),
                 _grid(
                   columns: 4,
@@ -191,7 +253,7 @@ class _LogDayScreenState extends ConsumerState<LogDayScreen> {
                         icon: moodIcon(m),
                         selected: _moods.contains(m),
                         color: context.colors.secondary,
-                        onTap: () => setState(() => _moods.contains(m)
+                        onTap: () => _change(() => _moods.contains(m)
                             ? _moods.remove(m)
                             : _moods.add(m)),
                       ),
@@ -202,11 +264,14 @@ class _LogDayScreenState extends ConsumerState<LogDayScreen> {
                   columns: 3,
                   children: [
                     for (final s in Symptom.values)
+                      if (!s.lifeStageOnly ||
+                          perimenopause ||
+                          _symptoms.contains(s))
                       ChoiceTile(
                         label: s.label,
                         icon: symptomIcon(s),
                         selected: _symptoms.contains(s),
-                        onTap: () => setState(() => _symptoms.contains(s)
+                        onTap: () => _change(() => _symptoms.contains(s)
                             ? _symptoms.remove(s)
                             : _symptoms.add(s)),
                       ),
@@ -215,6 +280,7 @@ class _LogDayScreenState extends ConsumerState<LogDayScreen> {
                 const SectionTitle('Note (optional)'),
                 TextField(
                   controller: _notes,
+                  onChanged: (_) => _dirty = true,
                   maxLines: 3,
                   maxLength: 500,
                   decoration: const InputDecoration(
@@ -247,7 +313,12 @@ class _LogDayScreenState extends ConsumerState<LogDayScreen> {
         spacing: gap,
         runSpacing: gap,
         children: [
-          for (final c in children) SizedBox(width: width, height: 92, child: c),
+          for (final c in children)
+            SizedBox(
+              width: width,
+              height: MediaQuery.textScalerOf(context).scale(92),
+              child: c,
+            ),
         ],
       );
     });

@@ -33,3 +33,25 @@ Future<WebPushSubscriptionData?> subscribeWebPush(String vapidPublicKey) async =
 Future<String?> currentWebPushEndpoint() async => null;
 
 Future<void> unsubscribeWebPush() async {}
+
+Future<void> saveBytesFile({
+  required String fileName,
+  required List<int> bytes,
+  required String mimeType,
+}) async {
+  final dir = await getTemporaryDirectory();
+  final file = File('${dir.path}/$fileName');
+  await file.writeAsBytes(bytes, flush: true);
+  await SharePlus.instance.share(
+    ShareParams(
+      files: [XFile(file.path, mimeType: mimeType)],
+      subject: fileName,
+    ),
+  );
+}
+
+bool isInAppBrowser() => false;
+
+void markTabSession() {}
+
+bool hasTabSession() => true;

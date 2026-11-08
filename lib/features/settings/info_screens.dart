@@ -85,6 +85,20 @@ class AboutScreen extends StatelessWidget {
             child: Text(AppText.healthDisclaimer,
                 style: context.text.bodyMedium?.copyWith(height: 1.5)),
           ),
+          const SectionTitle('Need someone to talk to?'),
+          SoftCard(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Column(
+              children: [
+                for (final (name, number) in AppText.helplines)
+                  ListTile(
+                    leading: const Icon(Icons.support_agent),
+                    title: Text(name),
+                    subtitle: SelectableText(number),
+                  ),
+              ],
+            ),
+          ),
           const SectionTitle('How estimates work'),
           for (final (title, body) in AppText.howEstimatesWork) ...[
             SoftCard(
@@ -110,6 +124,11 @@ class AboutScreen extends StatelessWidget {
                   title: const Text('Privacy notice'),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => context.push(AppRoutes.privacy),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.gavel_outlined),
+                  title: const Text('Information Regulator (complaints)'),
+                  subtitle: const Text('inforeg.org.za'),
                 ),
                 ListTile(
                   leading: const Icon(Icons.report_outlined),

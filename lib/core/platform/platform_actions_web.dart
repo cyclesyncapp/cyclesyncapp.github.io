@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:js_interop';
+import 'dart:typed_data';
 import 'dart:js_interop_unsafe';
 
 import 'package:web/web.dart' as web;
@@ -23,11 +24,23 @@ Future<void> saveTextFile({
   required String fileName,
   required String content,
   required String mimeType,
-}) async {
-  final blob = web.Blob(
-    [content.toJS].toJS,
-    web.BlobPropertyBag(type: mimeType),
-  );
+}) =>
+    _download(fileName, web.Blob(
+      [content.toJS].toJS,
+      web.BlobPropertyBag(type: mimeType),
+    ));
+
+Future<void> saveBytesFile({
+  required String fileName,
+  required List<int> bytes,
+  required String mimeType,
+}) =>
+    _download(fileName, web.Blob(
+      [Uint8List.fromList(bytes).toJS].toJS,
+      web.BlobPropertyBag(type: mimeType),
+    ));
+
+Future<void> _download(String fileName, web.Blob blob) async {
   final url = web.URL.createObjectURL(blob);
   final anchor = web.HTMLAnchorElement()
     ..href = url
@@ -116,5 +129,28 @@ Future<void> unsubscribeWebPush() async {
     if (sub != null) await sub.unsubscribe().toDart;
   } catch (_) {
     // Best effort: the browser may already have dropped it.
+  }
+}
+
+bool isInAppBrowser() {
+  final ua = web.window.navigator.userAgent;
+  return RegExp(r'WhatsApp|FBAN|FBAV|Instagram|; wv\)').hasMatch(ua);
+}
+
+const _tabKey = 'cyclesync_tab_session';
+
+void markTabSession() {
+  try {
+    web.window.sessionStorage.setItem(_tabKey, '1');
+  } catch (_) {
+    // Storage blocked; nothing to remember.
+  }
+}
+
+bool hasTabSession() {
+  try {
+    return web.window.sessionStorage.getItem(_tabKey) == '1';
+  } catch (_) {
+    return true;
   }
 }

@@ -61,16 +61,18 @@ void main() {
             flow: FlowLevel.heavy,
             symptoms: const [Symptom.cramps, Symptom.headache],
             moods: const [Mood.sad],
+            pain: 3,
+            painDisrupted: true,
             notes: 'said "ouch", then rested',
           ),
         ],
       );
       final lines = csv.trim().split('\r\n');
       expect(lines.first, CsvExport.header);
-      expect(lines[1], 'period,2026-09-01,2026-09-05,,,,');
-      expect(lines[2], 'period,2026-10-01,,,,,');
+      expect(lines[1], 'period,2026-09-01,2026-09-05,,,,,,,');
+      expect(lines[2], 'period,2026-10-01,,,,,,,,');
       expect(lines[3],
-          'daily_log,2026-09-02,,heavy,cramps;headache,sad,"said ""ouch"", then rested"');
+          'daily_log,2026-09-02,,heavy,cramps;headache,sad,3,yes,,"said ""ouch"", then rested"');
     });
 
     test('neutralises spreadsheet formulas', () {

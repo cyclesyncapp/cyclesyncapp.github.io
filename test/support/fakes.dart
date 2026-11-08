@@ -9,6 +9,7 @@ import 'package:cyclesync/domain/models.dart';
 import 'package:cyclesync/domain/reminder_planner.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// In-memory stand-in for Supabase.
 class FakeRepository implements CycleRepository {
@@ -21,6 +22,8 @@ class FakeRepository implements CycleRepository {
   bool signedIn;
   Profile profile;
   final List<Period> periods;
+  int savePeriodCalls = 0;
+  int failProfileUpdates = 0;
   final Map<DateTime, DailyLog> logs = {};
   ReminderPrefs reminders = const ReminderPrefs();
   final _auth = StreamController<AuthSnapshot>.broadcast();
@@ -67,6 +70,10 @@ class FakeRepository implements CycleRepository {
 
   @override
   Future<void> updateProfile(Map<String, dynamic> values) async {
+    if (failProfileUpdates > 0) {
+      failProfileUpdates--;
+      throw const AppException('Network error');
+    }
     profile = Profile(
       id: profile.id,
       displayName: values.containsKey('display_name')
@@ -82,6 +89,15 @@ class FakeRepository implements CycleRepository {
           values['onboarding_completed'] as bool? ?? profile.onboardingCompleted,
       showFertileWindow:
           values['show_fertile_window'] as bool? ?? profile.showFertileWindow,
+      contraception: values.containsKey('contraception')
+          ? Contraception.fromDb(values['contraception'] as String?)
+          : profile.contraception,
+      lifeStage: values.containsKey('life_stage')
+          ? LifeStage.fromDb(values['life_stage'] as String?)
+          : profile.lifeStage,
+      healthConsentAt: values.containsKey('health_consent_at')
+          ? DateTime.tryParse(values['health_consent_at'] as String)
+          : profile.healthConsentAt,
     );
   }
 
@@ -103,11 +119,21 @@ class FakeRepository implements CycleRepository {
       end: end,
       notes: notes,
     ));
+    savePeriodCalls++;
   }
 
   @override
   Future<void> deletePeriod(String id) async =>
       periods.removeWhere((p) => p.id == id);
+
+  @override
+  Future<void> setGapIsCycle(String id, bool? value) async {
+    final i = periods.indexWhere((p) => p.id == id);
+    if (i < 0) return;
+    final p = periods[i];
+    periods[i] = Period(
+        id: p.id, start: p.start, end: p.end, notes: p.notes, gapIsCycle: value);
+  }
 
   @override
   Future<List<DailyLog>> fetchLogs() async => logs.values.toList();
@@ -120,6 +146,9 @@ class FakeRepository implements CycleRepository {
         symptoms: log.symptoms,
         moods: log.moods,
         notes: log.notes,
+        pain: log.pain,
+        painDisrupted: log.painDisrupted,
+        heavySoaked: log.heavySoaked,
       );
 
   @override
@@ -178,7 +207,13 @@ Widget testApp(FakeRepository repo, {ProviderContainer? container}) {
   );
 }
 
-ProviderContainer testContainer(FakeRepository repo) => ProviderContainer(
+ProviderContainer testContainer(FakeRepository repo,
+    {Map<String, Object> prefs = const {}}) {
+  SharedPreferences.setMockInitialValues(prefs);
+  return _container(repo);
+}
+
+ProviderContainer _container(FakeRepository repo) => ProviderContainer(
       overrides: [
         repositoryProvider.overrideWithValue(repo),
         notificationServiceProvider

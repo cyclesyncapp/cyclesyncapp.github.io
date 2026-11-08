@@ -11,6 +11,8 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/common.dart';
 import '../../data/repositories/cycle_repository.dart';
 import '../../data/services/notification_service.dart';
+import '../../core/widgets/inputs.dart';
+import '../../domain/dates.dart';
 import '../../domain/models.dart';
 
 class NotificationsScreen extends ConsumerStatefulWidget {
@@ -39,6 +41,17 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     );
     if (t != null && mounted) {
       _update(p.copyWith(dailyHour: t.hour, dailyMinute: t.minute));
+    }
+  }
+
+  Future<void> _pickPillTime() async {
+    final p = _prefs!;
+    final t = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(hour: p.pillHour, minute: p.pillMinute),
+    );
+    if (t != null && mounted) {
+      _update(p.copyWith(pillHour: t.hour, pillMinute: t.minute));
     }
   }
 
@@ -93,6 +106,8 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                             periodReminderEnabled: false,
                             fertileReminderEnabled: false,
                             dailyReminderEnabled: false,
+                            pillReminderEnabled: false,
+                            injectionReminderEnabled: false,
                           )),
                     title: const Text('Enable reminders'),
                   ),
@@ -168,6 +183,91 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                     ],
                   ),
                 ),
+                const SectionTitle('Contraception reminders'),
+                SoftCard(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: Column(
+                    children: [
+                      SwitchListTile(
+                        value: p.pillReminderEnabled,
+                        onChanged: (v) =>
+                            _update(p.copyWith(pillReminderEnabled: v)),
+                        secondary: Icon(Icons.medication_outlined,
+                            color: context.colors.secondary),
+                        title: const Text('Daily pill reminder'),
+                        subtitle: Text(
+                          'At ${TimeOfDay(hour: p.pillHour, minute: p.pillMinute).format(context)}',
+                        ),
+                      ),
+                      if (p.pillReminderEnabled)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                          child: OutlinedButton.icon(
+                            onPressed: _pickPillTime,
+                            icon: const Icon(Icons.schedule),
+                            label: const Text('Change time'),
+                          ),
+                        ),
+                      const Divider(indent: 16, endIndent: 16),
+                      SwitchListTile(
+                        value: p.injectionReminderEnabled,
+                        onChanged: (v) =>
+                            _update(p.copyWith(injectionReminderEnabled: v)),
+                        secondary: Icon(Icons.vaccines_outlined,
+                            color: context.colors.secondary),
+                        title: const Text('Injection due reminder'),
+                        subtitle: Text(p.injectionDue == null
+                            ? 'A week before and on the due date'
+                            : 'Next due ${MaterialLocalizations.of(context).formatMediumDate(p.injectionDue!)}'),
+                      ),
+                      if (p.injectionReminderEnabled)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              DateField(
+                                label: 'Date of your last injection',
+                                value: p.injectionLastDate,
+                                allowClear: false,
+                                firstDate: addDays(
+                                    ref.read(todayProvider), -200),
+                                lastDate: ref.read(todayProvider),
+                                onChanged: (d) => _update(
+                                    p.copyWith(injectionLastDate: d)),
+                              ),
+                              const SizedBox(height: 10),
+                              Text('Repeat every',
+                                  style: context.text.bodySmall),
+                              const SizedBox(height: 6),
+                              SegmentedButton<int>(
+                                segments: const [
+                                  ButtonSegment(
+                                      value: 8, label: Text('8 weeks')),
+                                  ButtonSegment(
+                                      value: 12, label: Text('12 weeks')),
+                                  ButtonSegment(
+                                      value: 13, label: Text('13 weeks')),
+                                ],
+                                selected: {p.injectionIntervalWeeks},
+                                showSelectedIcon: false,
+                                onSelectionChanged: (v) => _update(p
+                                    .copyWith(injectionIntervalWeeks: v.first)),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                'Use the schedule your clinic gave you '
+                                '(e.g. Nur-Isterate often 8 weeks, Depo-Provera '
+                                'often 12–13 weeks).',
+                                style: context.text.bodySmall
+                                    ?.copyWith(color: context.cycle.muted),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
                 const SectionTitle('Privacy'),
                 SoftCard(
                   padding: const EdgeInsets.symmetric(vertical: 4),
@@ -191,7 +291,8 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                 const SizedBox(height: 12),
                 const NoticeCard(
                   icon: Icons.lock_outline,
-                  text: 'Your data is private and secure with Supabase.',
+                  text: 'Only you can see your records. Web reminders store '
+                      'only the time on our server, with neutral text.',
                 ),
                 const SizedBox(height: 20),
                 GradientButton(

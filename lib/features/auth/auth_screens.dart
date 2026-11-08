@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/constants/app_text.dart';
 import '../../core/providers.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/common.dart';
@@ -252,6 +253,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
   final _password = TextEditingController();
   bool _adult = false;
   bool _agreed = false;
+  bool _consent = false;
   bool _busy = false;
   String? _error;
   String? _sentTo;
@@ -272,9 +274,9 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
 
   Future<void> _submit() async {
     final valid = _form.currentState!.validate();
-    if (!_adult || !_agreed) {
+    if (!_adult || !_agreed || !_consent) {
       setState(() => _error =
-          'Please confirm you are 18 or older and have read the privacy notice and health disclaimer.');
+          'Please tick all three boxes to create your account.');
       return;
     }
     if (!valid) return;
@@ -388,6 +390,13 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                       ],
                     ),
                   ),
+                ),
+                CheckboxListTile(
+                  value: _consent,
+                  onChanged: (v) => setState(() => _consent = v ?? false),
+                  controlAffinity: ListTileControlAffinity.leading,
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text(AppText.healthConsentLabel),
                 ),
                 const SizedBox(height: 8),
                 _ErrorText(_error),

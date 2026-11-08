@@ -1,23 +1,22 @@
 // CycleSync: send-reminders Edge Function.
 //
 // GET  -> returns the public web-push key the app needs to subscribe.
-// POST -> sends every reminder that is due (called every 5 minutes by pg_cron).
+// POST -> sends every reminder that is due. Called every 5 minutes by pg_cron
+//         with the x-cron-secret header (see migration 4).
 //
-// Deploy with "Verify JWT" OFF. Both actions are safe without a login:
-// GET only returns a public key, and POST only sends reminders that users
-// scheduled for themselves, once each.
+// Deploy with "Verify JWT" OFF. GET only returns a public key; POST requires
+// the scheduler's secret. Reminder text stored on the server is always neutral.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import webpush from "npm:web-push@3.6.7";
 
 const CONTACT = "mailto:cyclesync-push@users.noreply.github.com";
-const LATE_LIMIT_MS = 12 * 60 * 60 * 1000; // skip reminders more than 12h late
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, OPTIONS",
 };
 
 const db = createClient(
@@ -31,6 +30,25 @@ function json(body: unknown, status = 200) {
     status,
     headers: { ...cors, "Content-Type": "application/json" },
   });
+}
+
+/** Constant-time string comparison. */
+function safeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
+async function cronSecretOk(req: Request): Promise<boolean> {
+  const given = req.headers.get("x-cron-secret") ?? "";
+  if (!given) return false;
+  const { data } = await db
+    .from("server_secrets")
+    .select("value")
+    .eq("name", "cron")
+    .maybeSingle();
+  return !!data?.value && safeEqual(given, data.value);
 }
 
 /** Loads the web-push keys, creating them the first time. */
@@ -47,7 +65,6 @@ async function vapidKeys(): Promise<{ publicKey: string; privateKey: string }> {
     { id: 1, public_key: keys.publicKey, private_key: keys.privateKey },
     { onConflict: "id", ignoreDuplicates: true },
   );
-  // Re-read in case another run created them at the same time.
   const { data: again } = await db
     .from("push_config")
     .select("public_key, private_key")
@@ -60,54 +77,36 @@ async function sendDue(): Promise<{ sent: number; skipped: number }> {
   const keys = await vapidKeys();
   webpush.setVapidDetails(CONTACT, keys.publicKey, keys.privateKey);
 
-  const now = Date.now();
-  const { data: due, error } = await db
-    .from("scheduled_pushes")
-    .select("id, user_id, kind, send_at, title, body, repeats_daily")
-    .lte("send_at", new Date(now).toISOString())
-    .order("send_at")
-    .limit(500);
+  // Claims due reminders atomically (moves repeating ones to their next time,
+  // deletes one-off ones), so overlapping runs never double-send.
+  const { data: due, error } = await db.rpc("claim_due_pushes");
   if (error) throw error;
 
   let sent = 0;
   let skipped = 0;
   for (const r of due ?? []) {
-    const late = now - new Date(r.send_at).getTime() > LATE_LIMIT_MS;
-    if (!late) {
-      const { data: subs } = await db
-        .from("push_subscriptions")
-        .select("id, endpoint, p256dh, auth")
-        .eq("user_id", r.user_id);
-      for (const s of subs ?? []) {
-        try {
-          await webpush.sendNotification(
-            { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
-            JSON.stringify({ title: r.title, body: r.body, tag: r.kind }),
-            { TTL: 6 * 60 * 60 },
-          );
-          sent++;
-        } catch (e) {
-          const code = (e as { statusCode?: number }).statusCode;
-          if (code === 404 || code === 410) {
-            // The browser unsubscribed; forget it.
-            await db.from("push_subscriptions").delete().eq("id", s.id);
-          }
+    if (r.late) {
+      skipped++;
+      continue;
+    }
+    const { data: subs } = await db
+      .from("push_subscriptions")
+      .select("id, endpoint, p256dh, auth")
+      .eq("user_id", r.user_id);
+    for (const s of subs ?? []) {
+      try {
+        await webpush.sendNotification(
+          { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
+          JSON.stringify({ title: r.title, body: r.body, tag: "cyclesync" }),
+          { TTL: 6 * 60 * 60 },
+        );
+        sent++;
+      } catch (e) {
+        const code = (e as { statusCode?: number }).statusCode;
+        if (code === 404 || code === 410) {
+          await db.from("push_subscriptions").delete().eq("id", s.id);
         }
       }
-    } else {
-      skipped++;
-    }
-
-    if (r.repeats_daily) {
-      // Move to the next future occurrence.
-      let next = new Date(r.send_at).getTime();
-      while (next <= now) next += 24 * 60 * 60 * 1000;
-      await db
-        .from("scheduled_pushes")
-        .update({ send_at: new Date(next).toISOString() })
-        .eq("id", r.id);
-    } else {
-      await db.from("scheduled_pushes").delete().eq("id", r.id);
     }
   }
   return { sent, skipped };
@@ -121,6 +120,7 @@ Deno.serve(async (req) => {
       return json({ publicKey });
     }
     if (req.method === "POST") {
+      if (!(await cronSecretOk(req))) return json({ error: "forbidden" }, 403);
       return json(await sendDue());
     }
     return json({ error: "method_not_allowed" }, 405);

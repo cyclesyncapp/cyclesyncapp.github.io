@@ -22,6 +22,9 @@ class CycleSummary {
     this.fertileDays = const {},
     this.ovulationDays = const {},
     this.stats = const CycleStats(),
+    this.nextWindow,
+    this.staleEstimate = false,
+    this.paused = false,
   });
 
   final DateTime today;
@@ -49,6 +52,17 @@ class CycleSummary {
   final Set<DateTime> ovulationDays;
 
   final CycleStats stats;
+
+  /// Likely range for the next start, from the shortest and longest recent
+  /// cycles. Only when estimates come from the user's own history.
+  final ({DateTime earliest, DateTime latest})? nextWindow;
+
+  /// True when it has been more than two cycles since the last logged
+  /// period, so no estimate is shown.
+  final bool staleEstimate;
+
+  /// Predictions paused (pregnant, postpartum, breastfeeding).
+  final bool paused;
 
   bool get hasEstimate => nextPeriodStart != null;
 
@@ -85,6 +99,8 @@ class CycleStats {
   const CycleStats({
     this.intervals = const [],
     this.validIntervals = const [],
+    this.validPoints = const [],
+    this.unconfirmedLongGaps = const [],
     this.durations = const [],
     this.averageCycle,
     this.averagePeriod,
@@ -95,8 +111,15 @@ class CycleStats {
   /// Days between consecutive starts, oldest first.
   final List<int> intervals;
 
-  /// Intervals in the plausible range used for estimates, oldest first.
+  /// Intervals used for estimates, oldest first.
   final List<int> validIntervals;
+
+  /// (start of cycle, length) for each interval used, oldest first.
+  final List<(DateTime, int)> validPoints;
+
+  /// Periods whose preceding gap is over 60 days and the user has not said
+  /// whether it was a real cycle. (period, gap days)
+  final List<(Period, int)> unconfirmedLongGaps;
 
   /// Recorded period durations, oldest first.
   final List<int> durations;
@@ -119,6 +142,9 @@ class CycleCalculator {
 
   static const int minValidCycle = 15;
   static const int maxValidCycle = 60;
+
+  /// Longest gap that can count as a real cycle once the user confirms it.
+  static const int maxConfirmedCycle = 180;
 
   /// Intervals needed before history is used instead of the user's setting.
   static const int minIntervalsForEstimate = 3;
@@ -149,6 +175,14 @@ class CycleCalculator {
   static bool isValidInterval(int days) =>
       days >= minValidCycle && days <= maxValidCycle;
 
+  /// Whether the gap ending at [next] counts as a cycle.
+  static bool countsAsCycle(int days, Period next) {
+    if (isValidInterval(days)) return true;
+    return days > maxValidCycle &&
+        days <= maxConfirmedCycle &&
+        next.gapIsCycle == true;
+  }
+
   /// Median rounded to whole days; null for an empty list.
   static int? median(List<int> values) {
     if (values.isEmpty) return null;
@@ -162,8 +196,22 @@ class CycleCalculator {
       values.length <= n ? values : values.sublist(values.length - n);
 
   static CycleStats stats(List<Period> periods) {
-    final intervals = cycleIntervals(periods);
-    final valid = intervals.where(isValidInterval).toList();
+    final sorted = sortedByStart(periods);
+    final intervals = cycleIntervals(sorted);
+    final valid = <int>[];
+    final points = <(DateTime, int)>[];
+    final unconfirmed = <(Period, int)>[];
+    for (var i = 1; i < sorted.length; i++) {
+      final days = intervals[i - 1];
+      if (countsAsCycle(days, sorted[i])) {
+        valid.add(days);
+        points.add((sorted[i - 1].start, days));
+      } else if (days > maxValidCycle &&
+          days <= maxConfirmedCycle &&
+          sorted[i].gapIsCycle == null) {
+        unconfirmed.add((sorted[i], days));
+      }
+    }
     final durations = [
       for (final p in sortedByStart(periods))
         if (p.durationDays != null) p.durationDays!,
@@ -174,13 +222,13 @@ class CycleCalculator {
     return CycleStats(
       intervals: intervals,
       validIntervals: valid,
+      validPoints: points,
+      unconfirmedLongGaps: unconfirmed,
       durations: durations,
-      averageCycle: enoughCycles
-          ? recentValid.reduce((a, b) => a + b) / recentValid.length
-          : null,
+      averageCycle:
+          enoughCycles ? median(recentValid)!.toDouble() : null,
       averagePeriod: enoughDurations
-          ? _latest(durations, recentWindow).reduce((a, b) => a + b) /
-              _latest(durations, recentWindow).length
+          ? median(_latest(durations, recentWindow))!.toDouble()
           : null,
       shortestCycle: enoughCycles ? recentValid.reduce(math.min) : null,
       longestCycle: enoughCycles ? recentValid.reduce(math.max) : null,
@@ -198,6 +246,7 @@ class CycleCalculator {
     int? typicalCycleLength,
     int? typicalPeriodLength,
     bool includeFertileWindow = false,
+    bool pausePredictions = false,
     int cyclesToPredict = 3,
   }) {
     final day = dateOnly(today);
@@ -243,7 +292,16 @@ class CycleCalculator {
     final fertile = <DateTime>{};
     final ovulation = <DateTime>{};
 
-    if (last != null && cycleLength != null) {
+    // More than two cycles since the last logged period: no estimate.
+    final stale = last != null &&
+        cycleLength != null &&
+        daysBetween(last.start, day) > cycleLength * 2;
+
+    // The fertile window needs real history, not just a typed-in length.
+    final fertileAllowed =
+        includeFertileWindow && cycleSource == EstimateSource.history;
+
+    if (last != null && cycleLength != null && !stale && !pausePredictions) {
       nextStart = addDays(last.start, cycleLength);
       final lastCovered = last.effectiveEnd(day);
 
@@ -255,7 +313,7 @@ class CycleCalculator {
           if (!d.isBefore(day) && d.isAfter(lastCovered)) predicted.add(d);
         }
 
-        if (includeFertileWindow) {
+        if (fertileAllowed) {
           final ov = addDays(start, -lutealDays);
           for (var i = -fertileDaysBefore; i <= fertileDaysAfter; i++) {
             final d = addDays(ov, i);
@@ -269,9 +327,25 @@ class CycleCalculator {
       ovulation.removeAll(predicted);
     }
 
+    ({DateTime earliest, DateTime latest})? window;
+    final lastStart = last?.start;
+    if (nextStart != null &&
+        lastStart != null &&
+        cycleSource == EstimateSource.history &&
+        st.shortestCycle != null &&
+        st.longestCycle != null) {
+      window = (
+        earliest: addDays(lastStart, st.shortestCycle!),
+        latest: addDays(lastStart, st.longestCycle!),
+      );
+    }
+
     return CycleSummary(
       today: day,
       periods: newestFirst,
+      nextWindow: window,
+      staleEstimate: stale && !pausePredictions,
+      paused: pausePredictions,
       lastPeriod: last,
       ongoingPeriod: ongoing,
       cycleDay: cycleDay,

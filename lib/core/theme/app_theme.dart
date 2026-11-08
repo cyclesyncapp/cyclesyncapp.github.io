@@ -36,7 +36,8 @@ class CycleColors extends ThemeExtension<CycleColors> {
   final Color softLavenderCard;
 
   static const light = CycleColors(
-    period: Color(0xFFE5458C),
+    // Dark enough for white day numbers (about 5.4:1).
+    period: Color(0xFFC2266F),
     periodSoft: Color(0xFFFCE1EE),
     fertile: Color(0xFF9C7FEA),
     fertileSoft: Color(0xFFEDE6FD),
@@ -65,7 +66,7 @@ class CycleColors extends ThemeExtension<CycleColors> {
   );
 
   static const dark = CycleColors(
-    period: Color(0xFFF06BA5),
+    period: Color(0xFFC2266F),
     periodSoft: Color(0xFF4A2338),
     fertile: Color(0xFFB9A2F5),
     fertileSoft: Color(0xFF34284D),

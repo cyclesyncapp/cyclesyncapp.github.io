@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart' show DateFormat;
 
 import '../../core/constants/app_text.dart';
+import '../../core/lock/app_lock.dart';
 import '../../core/platform/platform_actions.dart';
 import '../../core/providers.dart';
 import '../../core/theme/app_theme.dart';
@@ -46,9 +47,35 @@ class HomeScreen extends ConsumerWidget {
             child: PageBody(
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
               children: [
-                _Greeting(name: profile?.displayName),
+                _Greeting(
+                  name: profile?.displayName,
+                  lockEnabled: ref.watch(lockProvider).enabled,
+                  onLock: () => ref.read(lockProvider.notifier).lockNow(),
+                ),
                 const SizedBox(height: 18),
+                if (kIsWeb && isInAppBrowser())
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 12),
+                    child: NoticeCard(
+                      icon: Icons.open_in_browser,
+                      text: 'You opened CycleSync inside another app. For '
+                          'reminders and to stay signed in, open this link in '
+                          'Chrome or Safari, then add it to your home screen.',
+                    ),
+                  ),
                 const _InstallTip(),
+                if (profile?.hormonalContraception ?? false)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: NoticeCard(
+                      icon: Icons.info_outline,
+                      tint: context.cycle.softLavenderCard,
+                      text: 'You use ${profile!.contraception!.label.toLowerCase()}. '
+                          'Bleeding may not follow a natural cycle, so treat '
+                          'estimates as a rough guide.',
+                      onTap: () => context.push(AppRoutes.healthProfile),
+                    ),
+                  ),
                 _InAppReminders(summary: s, logs: logs),
                 _NextPeriodCard(summary: s),
                 const SizedBox(height: 14),
@@ -130,8 +157,10 @@ class HomeScreen extends ConsumerWidget {
 }
 
 class _Greeting extends StatelessWidget {
-  const _Greeting({this.name});
+  const _Greeting({this.name, this.lockEnabled = false, this.onLock});
   final String? name;
+  final bool lockEnabled;
+  final VoidCallback? onLock;
 
   @override
   Widget build(BuildContext context) {
@@ -152,6 +181,12 @@ class _Greeting extends StatelessWidget {
             style: context.text.titleLarge?.copyWith(height: 1.2),
           ),
         ),
+        if (lockEnabled)
+          IconButton(
+            tooltip: 'Lock now',
+            onPressed: onLock,
+            icon: Icon(Icons.lock_outline, color: context.colors.primary),
+          ),
         IconButton(
           tooltip: 'Reminders',
           onPressed: () => context.push(AppRoutes.notifications),
@@ -176,11 +211,21 @@ class _NextPeriodCard extends StatelessWidget {
     String detail;
     String? source;
 
+    final shortFmt = DateFormat('d MMM');
     if (s.ongoingPeriod != null) {
       final day = daysBetween(s.ongoingPeriod!.start, s.today) + 1;
       eyebrow = 'PERIOD IN PROGRESS';
       headline = 'Day $day';
       detail = 'Started ${fmt.format(s.ongoingPeriod!.start)}';
+    } else if (s.paused) {
+      eyebrow = 'ESTIMATES PAUSED';
+      headline = 'Taking a break';
+      detail = 'Period estimates are paused for your life stage. You can '
+          'still log bleeding, symptoms and mood.';
+    } else if (s.staleEstimate) {
+      eyebrow = 'NO CURRENT ESTIMATE';
+      headline = "It's been a while";
+      detail = 'Log your latest period to restart estimates.';
     } else if (s.hasEstimate) {
       final days = s.daysUntilNext!;
       eyebrow = 'YOUR NEXT PERIOD';
@@ -194,9 +239,12 @@ class _NextPeriodCard extends StatelessWidget {
         eyebrow = 'ESTIMATED START HAS PASSED';
         headline = '${-days} day${days == -1 ? '' : 's'} ago';
       }
+      final w = s.nextWindow;
       detail = days < 0
           ? 'Estimated ${fmt.format(s.nextPeriodStart!)}. Log your period when it starts.'
-          : fmt.format(s.nextPeriodStart!);
+          : (w != null && !sameDate(w.earliest, w.latest))
+              ? 'Likely ${shortFmt.format(w.earliest)} – ${shortFmt.format(w.latest)}'
+              : fmt.format(s.nextPeriodStart!);
       source = s.cycleSource == EstimateSource.history
           ? 'Estimate based on your logged cycles'
           : 'Estimate based on your typical cycle setting';
@@ -245,7 +293,11 @@ class _NextPeriodCard extends StatelessWidget {
                     headline,
                     style: context.text.headlineMedium?.copyWith(
                       color: context.cycle.heading,
-                      fontSize: s.hasEstimate || s.ongoingPeriod != null ? 34 : 22,
+                      fontSize: (s.hasEstimate || s.ongoingPeriod != null) &&
+                              !s.paused &&
+                              !s.staleEstimate
+                          ? 34
+                          : 22,
                     ),
                   ),
                   const SizedBox(height: 2),
@@ -353,11 +405,46 @@ class _PeriodAction extends ConsumerWidget {
         },
       );
     }
-    return OutlinedButton.icon(
-      icon: const Icon(Icons.water_drop_outlined),
-      label: const Text('Log period'),
-      onPressed: () => context.push(AppRoutes.newPeriodFrom(summary.today)),
+    return Row(
+      children: [
+        Expanded(
+          child: OutlinedButton.icon(
+            icon: const Icon(Icons.water_drop_outlined),
+            label: const Text('Period started today'),
+            onPressed: () => _startToday(context, ref),
+          ),
+        ),
+        const SizedBox(width: 8),
+        IconButton.outlined(
+          tooltip: 'Log a past period',
+          onPressed: () => context.push(AppRoutes.newPeriodFrom(summary.today)),
+          icon: const Icon(Icons.edit_calendar_outlined),
+        ),
+      ],
     );
+  }
+
+  /// One tap: records a period starting today. Falls back to the editor if
+  /// it would overlap another record.
+  Future<void> _startToday(BuildContext context, WidgetRef ref) async {
+    final overlap = CycleCalculator.findOverlap(
+      existing: summary.periods,
+      start: summary.today,
+      today: summary.today,
+    );
+    if (overlap != null) {
+      context.push(AppRoutes.newPeriodFrom(summary.today));
+      return;
+    }
+    try {
+      await ref.read(repositoryProvider).savePeriod(start: summary.today);
+      refreshCycleData(ref);
+      if (context.mounted) showMessage(context, 'Period start saved for today');
+    } on PeriodOverlapException {
+      if (context.mounted) context.push(AppRoutes.newPeriodFrom(summary.today));
+    } on AppException catch (e) {
+      if (context.mounted) showMessage(context, e.message);
+    }
   }
 }
 

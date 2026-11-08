@@ -4,7 +4,7 @@
   "start_url": ".",
   "display": "standalone",
   "background_color": "#FFF8F9",
-  "theme_color": "#8E4A6B",
+  "theme_color": "#C0399A",
   "description": "Private period and cycle tracker",
   "orientation": "portrait-primary",
   "prefer_related_applications": false,
@@ -30,6 +30,32 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Daily check-in",
+      "short_name": "Check-in",
+      "url": "./#/log",
+      "icons": [
+        {
+          "src": "icons/Icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Log period",
+      "short_name": "Log period",
+      "url": "./#/period/new",
+      "icons": [
+        {
+          "src": "icons/Icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
     }
   ]
 }

@@ -19,6 +19,17 @@ class AppText {
       'have concerns about your cycle, symptoms or health, speak with a '
       'qualified healthcare professional.';
 
+  static const List<(String, String)> helplines = [
+    ('SADAG Suicide Crisis Helpline (24 hours, free)', '0800 567 567'),
+    ('Cipla Mental Health Helpline (24 hours, free)', '0800 456 789'),
+    ('GBV Command Centre (24 hours, free)', '0800 428 428'),
+    ('GBV Command Centre "please call me"', '*120*7867#'),
+  ];
+
+  static const String healthConsentLabel =
+      'I agree that CycleSync may store my period and health information '
+      'to run the app';
+
   static const String estimatesShort =
       'Predictions are estimates and can change as you log more.';
 
@@ -35,15 +46,17 @@ class AppText {
     ),
     (
       'Next period',
-      'Once you have logged at least 3 cycles, CycleSync uses the middle '
-          'value (median) of your latest 6 cycle lengths. Before that, it uses '
-          'the typical cycle length you entered, if any. It never assumes a '
-          'default.',
+      'Once you have logged at least 3 cycles, CycleSync uses your usual '
+          'cycle length from your last 6 cycles (the middle one, so one odd '
+          'month doesn\'t throw it off), and shows a likely range from your '
+          'shortest and longest. Before that, it uses the typical length you '
+          'entered, if any. It never assumes a default.',
     ),
     (
       'Unusual gaps',
-      'Gaps shorter than 15 or longer than 60 days (for example a missed '
-          'log) are left out of estimates, so one gap does not skew them.',
+      'Gaps shorter than 15 days are left out. For gaps longer than 60 days, '
+          'CycleSync asks in Period History whether it was a real cycle or a '
+          'missed log, and only counts it if you say it was real.',
     ),
     (
       'Period length',
@@ -52,39 +65,51 @@ class AppText {
     ),
     (
       'Fertile window (optional)',
-      'If you turn it on, it is estimated as the 5 days before and 1 day '
-          'after a date 14 days before your next estimated period. This is '
-          'a calendar estimate only.',
+      'If you turn it on, and once you have logged 3 cycles, it is estimated '
+          'as about a week ending a day after a date 14 days before your next '
+          'estimated period. It is hidden on hormonal contraception. This is a '
+          'calendar estimate only.',
     ),
   ];
 
   static String get privacyNotice => '''
 CycleSync privacy notice (draft)
 
+Who is responsible
+CycleSync is run by its owner, who acts as the responsible party and Information Officer under South Africa's Protection of Personal Information Act (POPIA). Contact: ${supportEmail.isEmpty ? 'a contact address will be published here before launch' : supportEmail}.
+
 What we collect
 • Your email address and a securely hashed password, to run your account.
-• What you choose to log: period dates, flow, symptoms, mood, notes, and optional settings such as typical cycle length, display name and reminder times.
-• Your device's time zone, so dates and reminders are correct.
+• What you choose to log: period dates, flow, pain, symptoms, mood and notes, and optional settings such as typical cycle length, display name, life stage, contraception method and reminder times.
+• If you turn on web notifications: a technical address for your browser, so reminders can be delivered.
+
+Some of this is "special personal information" about your health and sex life. We only process it with your explicit consent, which you give when creating your account and can withdraw at any time by deleting your account.
 
 We do not collect your date of birth, location, contacts, photos or advertising identifiers, and we do not use analytics or advertising tools.
 
 Why
-Only to provide the tracking, estimates, reminders and export features you use. We never sell or share your health information for advertising.
+Only to provide the tracking, estimates, reminders and export features you use. We never sell or share your information for advertising.
 
 Where it is stored
-Your data is stored with our database provider, Supabase, in a data centre in Europe. This is a transfer of information outside South Africa. Each account's records are isolated by database security rules, and all connections use HTTPS.
+Your data is stored with our database provider, Supabase, in a data centre in Europe. This is a transfer of personal information outside South Africa, made with your consent and to a provider bound to keep it secure. Each account's records are isolated by database security rules, and all connections use HTTPS.
 
-Notifications
-Reminders are created on your phone. By default their text is neutral ("You have a CycleSync reminder") so nothing sensitive shows on your lock screen.
+Reminders
+On Android, reminders are created on your phone. In the web app, only the time of each reminder is stored on our server so it can be sent; the text is always neutral ("You have a CycleSync reminder"), so nothing private shows on your screen or is stored with it.
 
-Your choices and rights
-You can view and correct your records at any time, export them as a CSV file, and permanently delete your account and all records from Settings → Privacy & Security. You may also ask about, object to, or complain about how your information is handled, including to the Information Regulator (South Africa).
+App lock
+If you set a PIN, it is stored only on your device, never on our servers.
+
+How long we keep it
+Until you delete it or delete your account. Deleting your account removes your login and every record immediately. We do not currently keep separate backups; if that changes, deleted data will expire from backups within 30 days and this notice will say so.
+
+Your rights
+You can view and correct your records at any time, export them (CSV, or a PDF summary for a doctor), and permanently delete your account and all records in Settings → Privacy, Export & Delete. You may object to processing, and you may complain to the Information Regulator (South Africa), inforeg.org.za.
+
+Requests from authorities
+We only disclose information when legally required to, and will tell you about a request unless the law forbids it.
 
 Age
 CycleSync is intended for adults (18+).
-
-Contact
-${supportEmail.isEmpty ? 'A contact address for privacy and security concerns will be published here before launch.' : supportEmail}
 
 This notice is a draft and will be reviewed before public launch.
 ''';

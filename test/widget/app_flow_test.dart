@@ -1,3 +1,4 @@
+import 'package:cyclesync/core/lock/app_lock.dart';
 import 'package:cyclesync/domain/models.dart';
 import 'package:cyclesync/routing/app_router.dart';
 import 'package:flutter/material.dart';
@@ -162,6 +163,57 @@ void main() {
     await tester.tap(find.text('Patterns'));
     await tester.pumpAndSettle();
     expect(find.text('Symptoms through your cycle'), findsOneWidget);
+  });
+
+  testWidgets('a PIN locks the app until it is entered', (tester) async {
+    _phone(tester);
+    final repo = FakeRepository();
+    final container = testContainer(repo, prefs: {
+      'lock_pin_salt': 'salt',
+      'lock_pin_hash': hashPin('2468', 'salt'),
+      'lock_pin_length': 4,
+    });
+    addTearDown(container.dispose);
+    await tester.pumpWidget(testApp(repo, container: container));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Enter your PIN'), findsOneWidget);
+    for (final d in ['1', '1', '1', '1']) {
+      await tester.tap(find.text(d).last);
+      await tester.pump();
+    }
+    await tester.pumpAndSettle();
+    expect(find.text('That PIN is not right.'), findsOneWidget);
+
+    for (final d in ['2', '4', '6', '8']) {
+      await tester.tap(find.text(d).last);
+      await tester.pump();
+    }
+    await tester.pumpAndSettle();
+    expect(find.text('Enter your PIN'), findsNothing);
+  });
+
+  testWidgets('postpartum pauses estimates', (tester) async {
+    _phone(tester);
+    final repo = FakeRepository(
+      profile: const Profile(
+        id: 'u1',
+        onboardingCompleted: true,
+        typicalCycleLength: 28,
+        lifeStage: LifeStage.postpartum,
+      ),
+      periods: [
+        Period(
+          id: 'p1',
+          start: DateTime.utc(2026, 11, 1),
+          end: DateTime.utc(2026, 11, 5),
+        ),
+      ],
+    );
+    await tester.pumpWidget(testApp(repo));
+    await tester.pumpAndSettle();
+    expect(find.text('Taking a break'), findsOneWidget);
+    expect(find.text('21 days'), findsNothing);
   });
 
   testWidgets('wide screens use a side rail', (tester) async {

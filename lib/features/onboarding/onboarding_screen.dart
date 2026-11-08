@@ -12,6 +12,7 @@ import '../../data/repositories/cycle_repository.dart';
 import '../../data/services/notification_service.dart';
 import '../../domain/dates.dart';
 import '../../domain/models.dart';
+import '../settings/health_and_lock_screens.dart';
 
 class OnboardingScreen extends ConsumerStatefulWidget {
   const OnboardingScreen({super.key});
@@ -21,7 +22,7 @@ class OnboardingScreen extends ConsumerStatefulWidget {
 }
 
 class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
-  static const _steps = 4;
+  static const _steps = 5;
   int _step = 0;
   bool _saving = false;
 
@@ -35,6 +36,11 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   bool _periodUnknown = true;
   bool _periodReminder = false;
   bool _dailyReminder = false;
+  LifeStage _stage = LifeStage.cycling;
+  Contraception? _method;
+
+  /// Set once the first period is saved, so a retry never saves it twice.
+  bool _periodSaved = false;
 
   @override
   void dispose() {
@@ -46,14 +52,19 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     setState(() => _saving = true);
     final repo = ref.read(repositoryProvider);
     try {
-      if (_lastStart != null) {
-        await repo.savePeriod(
-          start: _lastStart!,
-          end: _stillGoing ? null : _lastEnd,
-        );
+      if (_lastStart != null && !_periodSaved) {
+        try {
+          await repo.savePeriod(
+            start: _lastStart!,
+            end: _stillGoing ? null : _lastEnd,
+          );
+        } on PeriodOverlapException {
+          // Already saved by an earlier attempt.
+        }
+        _periodSaved = true;
       }
       final prefs = ReminderPrefs(
-        periodReminderEnabled: _periodReminder,
+        periodReminderEnabled: _periodReminder && !_stage.paused,
         dailyReminderEnabled: _dailyReminder,
       );
       await repo.saveReminders(prefs);
@@ -64,7 +75,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         'display_name': _name.text.trim().isEmpty ? null : _name.text.trim(),
         'average_cycle_length': _cycleUnknown ? null : _cycleLength,
         'average_period_length': _periodUnknown ? null : _periodLength,
-        'timezone': DateTime.now().timeZoneName,
+        'life_stage': _stage.db,
+        'contraception': _method?.db,
+        // Consent was given at sign-up; record when it took effect.
+        'health_consent_at': DateTime.now().toUtc().toIso8601String(),
         'onboarding_completed': true,
       });
       ref.invalidate(periodsProvider);
@@ -94,6 +108,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     final today = ref.watch(todayProvider);
     final pages = [
       _nameStep(context),
+      _aboutYouStep(context),
       _lastPeriodStep(context, today),
       _lengthsStep(context),
       _remindersStep(context),
@@ -206,6 +221,58 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         const NoticeCard(
           icon: Icons.health_and_safety_outlined,
           text: AppText.estimatesShort,
+        ),
+      ],
+    );
+  }
+
+  Widget _aboutYouStep(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _header(context, 'About you',
+            'Optional. This avoids wrong estimates and unhelpful notes.'),
+        Text('Right now I am…', style: context.text.titleSmall),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final s in LifeStage.values)
+              ChoiceChip(
+                label: Text(s.description),
+                selected: _stage == s,
+                onSelected: (_) => setState(() => _stage = s),
+              ),
+          ],
+        ),
+        const SizedBox(height: 20),
+        Text('Contraception', style: context.text.titleSmall),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final c in Contraception.values)
+              ChoiceChip(
+                label: Text(c.label),
+                selected: _method == c,
+                onSelected: (_) => setState(() => _method = c),
+              ),
+            ChoiceChip(
+              label: const Text('Prefer not to say'),
+              selected: _method == null,
+              onSelected: (_) => setState(() => _method = null),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        NoticeCard(
+          icon: Icons.info_outline,
+          tint: context.cycle.softLavenderCard,
+          text: _stage != LifeStage.cycling
+              ? lifeStageEffect(_stage)
+              : contraceptionEffect(_method),
         ),
       ],
     );

@@ -15,6 +15,7 @@ import '../features/logging/log_day_screen.dart';
 import '../features/logging/period_editor_screen.dart';
 import '../features/onboarding/onboarding_screen.dart';
 import '../features/reminders/notifications_screen.dart';
+import '../features/settings/health_and_lock_screens.dart';
 import '../features/settings/info_screens.dart';
 import '../features/settings/settings_screens.dart';
 import '../features/welcome/install_screen.dart';
@@ -47,6 +48,8 @@ class AppRoutes {
   static const notifications = '/settings/notifications';
   static const privacySettings = '/settings/privacy';
   static const about = '/about';
+  static const healthProfile = '/settings/health';
+  static const appLock = '/settings/lock';
 
   static String periodEdit(String id) => '/period/$id';
   static String logFor(DateTime day) => '$log?date=${toDbDate(day)}';
@@ -252,6 +255,16 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.about,
         parentNavigatorKey: _rootKey,
         builder: (context, state) => const AboutScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.healthProfile,
+        parentNavigatorKey: _rootKey,
+        builder: (context, state) => const HealthProfileScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.appLock,
+        parentNavigatorKey: _rootKey,
+        builder: (context, state) => const AppLockScreen(),
       ),
     ],
   );

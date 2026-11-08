@@ -261,12 +261,20 @@ void main() {
       expect(s.ovulationDays, isEmpty);
     });
 
-    test('estimated 14 days before next start, window -5..+1', () {
+    test('needs real history, not just a typed-in cycle length', () {
       final s = CycleCalculator.summarize(
         periods: [p('a', d(2026, 11, 1), d(2026, 11, 5))],
         today: d(2026, 11, 6),
         typicalCycleLength: 28,
-        typicalPeriodLength: 5,
+        includeFertileWindow: true,
+      );
+      expect(s.fertileDays, isEmpty);
+    });
+
+    test('estimated 14 days before next start, window -5..+1', () {
+      final s = CycleCalculator.summarize(
+        periods: history(d(2026, 8, 9), [28, 28, 28]),
+        today: d(2026, 11, 6),
         includeFertileWindow: true,
         cyclesToPredict: 1,
       );
@@ -314,6 +322,65 @@ void main() {
           excludeId: 'a',
           today: today);
       expect(o, isNull);
+    });
+  });
+
+  group('long gaps and staleness', () {
+    test('a confirmed long gap counts as a cycle', () {
+      final ps = [
+        p('a', d(2026, 1, 1), d(2026, 1, 5)),
+        p('b', d(2026, 3, 22), d(2026, 3, 26)), // 80 days
+        Period(
+            id: 'c',
+            start: d(2026, 6, 10),
+            end: d(2026, 6, 14),
+            gapIsCycle: true), // 80 days, confirmed
+      ];
+      final s = CycleCalculator.summarize(periods: ps, today: d(2026, 6, 20));
+      expect(s.stats.validIntervals, [80]);
+      expect(s.stats.unconfirmedLongGaps.single.$1.id, 'b');
+      expect(s.stats.unconfirmedLongGaps.single.$2, 80);
+    });
+
+    test('a gap marked as missed logging is not counted or asked about', () {
+      final ps = [
+        p('a', d(2026, 1, 1)),
+        Period(id: 'b', start: d(2026, 3, 22), gapIsCycle: false),
+      ];
+      final s = CycleCalculator.summarize(periods: ps, today: d(2026, 3, 25));
+      expect(s.stats.validIntervals, isEmpty);
+      expect(s.stats.unconfirmedLongGaps, isEmpty);
+    });
+
+    test('no estimate when more than two cycles have passed', () {
+      final s = CycleCalculator.summarize(
+        periods: [p('a', d(2026, 6, 1), d(2026, 6, 5))],
+        today: d(2026, 9, 1),
+        typicalCycleLength: 28,
+      );
+      expect(s.staleEstimate, isTrue);
+      expect(s.hasEstimate, isFalse);
+      expect(s.predictedPeriodDays, isEmpty);
+    });
+
+    test('paused predictions show no estimate', () {
+      final s = CycleCalculator.summarize(
+        periods: history(d(2026, 6, 1), [28, 28, 28]),
+        today: d(2026, 9, 1),
+        pausePredictions: true,
+      );
+      expect(s.paused, isTrue);
+      expect(s.hasEstimate, isFalse);
+    });
+
+    test('likely window from shortest and longest recent cycles', () {
+      final s = CycleCalculator.summarize(
+        periods: history(d(2026, 6, 1), [27, 30, 28]),
+        today: d(2026, 8, 30),
+      );
+      // last start 25 Aug
+      expect(s.nextWindow!.earliest, d(2026, 9, 21));
+      expect(s.nextWindow!.latest, d(2026, 9, 24));
     });
   });
 
