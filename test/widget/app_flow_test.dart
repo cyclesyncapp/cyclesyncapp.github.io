@@ -162,6 +162,11 @@ void main() {
 
     await tester.tap(find.text('Patterns'));
     await tester.pumpAndSettle();
+    await tester.dragUntilVisible(
+      find.text('Symptoms through your cycle'),
+      find.byType(Scrollable).first,
+      const Offset(0, 300),
+    );
     expect(find.text('Symptoms through your cycle'), findsOneWidget);
   });
 
