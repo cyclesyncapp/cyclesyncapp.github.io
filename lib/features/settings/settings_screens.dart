@@ -307,7 +307,7 @@ class _CycleSettingsScreenState extends ConsumerState<CycleSettingsScreen> {
     if (on) {
       final ok = await confirmDialog(
         context,
-        title: 'Show fertile window?',
+        title: 'Show ovulation & fertile window?',
         message: AppText.fertileWarning,
         confirmLabel: 'I understand',
       );
@@ -421,7 +421,7 @@ class _CycleSettingsScreenState extends ConsumerState<CycleSettingsScreen> {
                     onChanged: fertileAllowed ? _toggleFertile : null,
                     secondary: Icon(Icons.spa_outlined,
                         color: context.cycle.fertile),
-                    title: const Text('Show estimated fertile window'),
+                    title: const Text('Show estimated ovulation & fertile window'),
                     subtitle: Text(fertileAllowed
                         ? 'Off by default. Needs 3 logged cycles. A rough '
                             'calendar estimate only.'

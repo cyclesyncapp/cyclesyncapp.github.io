@@ -49,8 +49,8 @@ enum DayMark { none, period, predictedPeriod, fertile, ovulation }
 DayMark markFor(CycleSummary s, DateTime day) {
   if (s.periodOn(day) != null) return DayMark.period;
   if (s.predictedPeriodDays.contains(day)) return DayMark.predictedPeriod;
-  // A single "ovulation day" implies more certainty than a calendar estimate
-  // has, so only the fertile window is shown.
+  // Shown only when the user opts in; always labelled as an estimate.
+  if (s.ovulationDays.contains(day)) return DayMark.ovulation;
   if (s.fertileDays.contains(day)) return DayMark.fertile;
   return DayMark.none;
 }
@@ -118,7 +118,7 @@ class DayCell extends StatelessWidget {
         fill = c.fertileSoft;
         border = Border.all(color: c.fertile);
       case DayMark.ovulation:
-        fill = c.fertile;
+        fill = c.ovulation;
         text = Colors.white;
       case DayMark.none:
         break;
@@ -152,6 +152,28 @@ class DayCell extends StatelessWidget {
       circle = CustomPaint(
         foregroundPainter: DashedCirclePainter(color: c.period),
         child: circle,
+      );
+    }
+    if (mark == DayMark.ovulation) {
+      // A star badge, so the day stands out by shape, not only colour.
+      circle = Stack(
+        clipBehavior: Clip.none,
+        children: [
+          circle,
+          Positioned(
+            right: -3,
+            top: -3,
+            child: Container(
+              padding: const EdgeInsets.all(1.5),
+              decoration: BoxDecoration(
+                color: context.colors.surfaceContainerLowest,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.star_rounded,
+                  size: size * 0.32, color: c.ovulation),
+            ),
+          ),
+        ],
       );
     }
     if ((isToday && mark != DayMark.none) || selected) {
@@ -267,9 +289,24 @@ class CalendarLegend extends StatelessWidget {
           ),
           'Predicted',
         ),
-        if (showFertile)
+        if (showFertile) ...[
           item(dot(c.fertileSoft, border: Border.all(color: c.fertile)),
               'Fertile (est.)'),
+          item(
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                dot(c.ovulation),
+                Positioned(
+                  right: -4,
+                  top: -4,
+                  child: Icon(Icons.star_rounded, size: 9, color: c.ovulation),
+                ),
+              ],
+            ),
+            'Ovulation (est.)',
+          ),
+        ],
         item(dot(c.todayFill), 'Today'),
         item(
           Container(

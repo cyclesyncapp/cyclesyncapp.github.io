@@ -215,6 +215,43 @@ void main() {
     expect(find.text('21 days'), findsNothing);
   });
 
+  testWidgets('calendar shows estimated ovulation when turned on',
+      (tester) async {
+    _phone(tester);
+    // 28-day cycles: starts 9 Aug, 6 Sep, 4 Oct, 1 Nov -> next 29 Nov,
+    // ovulation estimated 15 Nov.
+    final repo = FakeRepository(
+      profile: const Profile(
+        id: 'u1',
+        onboardingCompleted: true,
+        showFertileWindow: true,
+      ),
+      periods: [
+        for (final s in [
+          DateTime.utc(2026, 8, 9),
+          DateTime.utc(2026, 9, 6),
+          DateTime.utc(2026, 10, 4),
+          DateTime.utc(2026, 11, 1),
+        ])
+          Period(id: '$s', start: s, end: s.add(const Duration(days: 4))),
+      ],
+    );
+    await tester.pumpWidget(testApp(repo));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Calendar').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Ovulation (est.)'), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp('Sunday 15 November.*estimated ovulation day')),
+        findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Estimated ovulation'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.textContaining('Around Sun 15 Nov'), findsOneWidget);
+  });
+
   testWidgets('wide screens use a side rail', (tester) async {
     tester.view.physicalSize = const Size(1200, 900);
     tester.view.devicePixelRatio = 1.0;

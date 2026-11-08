@@ -30,7 +30,9 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
   Widget build(BuildContext context) {
     final summary = ref.watch(summaryProvider);
     final logs = ref.watch(logsByDateProvider).value ?? const {};
-    final showFertile = ref.watch(profileProvider).value?.showFertileWindow ?? false;
+    final profile = ref.watch(profileProvider).value;
+    final showFertile = (profile?.showFertileWindow ?? false) &&
+        (profile?.fertileWindowAllowed ?? true);
 
     return GradientScaffold(
       title: 'Cycle Calendar',
@@ -96,16 +98,9 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
             ),
             const SizedBox(height: 14),
             _NextPeriodSummary(summary: s),
-            if (showFertile && s.upcomingFertileWindow != null) ...[
+            if (showFertile) ...[
               const SizedBox(height: 12),
-              NoticeCard(
-                icon: Icons.spa_outlined,
-                tint: context.cycle.softLavenderCard,
-                text: 'Estimated fertile window: '
-                    '${DateFormat('d MMM').format(s.upcomingFertileWindow!.start)}'
-                    ' – ${DateFormat('d MMM').format(s.upcomingFertileWindow!.end)}. '
-                    'Not reliable as contraception.',
-              ),
+              _OvulationCard(summary: s),
             ],
             const SizedBox(height: 16),
             OutlinedButton.icon(
@@ -232,6 +227,77 @@ class _NextPeriodSummary extends StatelessWidget {
                     style: context.text.headlineSmall
                         ?.copyWith(color: context.colors.secondary)),
                 if (sub != null) Text(sub, style: context.text.bodyMedium),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Next estimated ovulation day and fertile window (opt-in).
+class _OvulationCard extends StatelessWidget {
+  const _OvulationCard({required this.summary});
+  final CycleSummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = summary;
+    final window = s.upcomingFertileWindow;
+    final upcoming = s.ovulationDays.where((d) => !d.isBefore(s.today)).toList()
+      ..sort();
+    final ov = upcoming.isEmpty ? null : upcoming.first;
+
+    if (window == null && ov == null) {
+      return NoticeCard(
+        icon: Icons.star_outline_rounded,
+        tint: context.cycle.softLavenderCard,
+        text: s.cycleSource == EstimateSource.history
+            ? 'No upcoming ovulation estimate right now.'
+            : 'Ovulation and fertile-window estimates appear after you have '
+                'logged 3 cycles.',
+      );
+    }
+
+    final day = DateFormat('EEE d MMM');
+    final short = DateFormat('d MMM');
+    final daysToOv = ov == null ? null : daysBetween(s.today, ov);
+    return SoftCard(
+      tint: context.cycle.softLavenderCard,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          IconBubble(icon: Icons.star_rounded, color: context.cycle.ovulation),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Estimated ovulation', style: context.text.titleSmall),
+                if (ov != null)
+                  Text(
+                    daysToOv == 0
+                        ? 'Around today (${day.format(ov)})'
+                        : 'Around ${day.format(ov)} · in $daysToOv day'
+                            '${daysToOv == 1 ? '' : 's'}',
+                    style: context.text.titleMedium
+                        ?.copyWith(color: context.cycle.ovulation),
+                  ),
+                if (window != null)
+                  Text(
+                    'Fertile window ${short.format(window.start)} – '
+                    '${short.format(window.end)}',
+                    style: context.text.bodyMedium,
+                  ),
+                const SizedBox(height: 6),
+                Text(
+                  'A calendar estimate: 14 days before your next estimated '
+                  'period. It can be several days off and is not reliable as '
+                  'contraception.',
+                  style: context.text.bodySmall
+                      ?.copyWith(color: context.cycle.muted),
+                ),
               ],
             ),
           ),

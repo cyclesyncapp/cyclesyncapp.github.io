@@ -64,10 +64,11 @@ class AppText {
           'median of your recent period lengths; before that, your setting.',
     ),
     (
-      'Fertile window (optional)',
-      'If you turn it on, and once you have logged 3 cycles, it is estimated '
-          'as about a week ending a day after a date 14 days before your next '
-          'estimated period. It is hidden on hormonal contraception. This is a '
+      'Ovulation and fertile window (optional)',
+      'If you turn it on, and once you have logged 3 cycles, ovulation is '
+          'estimated as 14 days before your next estimated period (shown with '
+          'a star), and the fertile window as the 5 days before it and the day '
+          'after. It is hidden on hormonal contraception. This is a '
           'calendar estimate only.',
     ),
   ];

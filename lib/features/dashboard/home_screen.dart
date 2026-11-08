@@ -127,7 +127,8 @@ class HomeScreen extends ConsumerWidget {
                       ),
                       const SizedBox(height: 14),
                       CalendarLegend(
-                        showFertile: profile?.showFertileWindow ?? false,
+                        showFertile: (profile?.showFertileWindow ?? false) &&
+                            (profile?.fertileWindowAllowed ?? true),
                       ),
                     ],
                   ),

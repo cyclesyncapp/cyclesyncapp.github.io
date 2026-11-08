@@ -8,6 +8,7 @@ class CycleColors extends ThemeExtension<CycleColors> {
     required this.periodSoft,
     required this.fertile,
     required this.fertileSoft,
+    required this.ovulation,
     required this.todayFill,
     required this.onTodayFill,
     required this.heading,
@@ -24,6 +25,9 @@ class CycleColors extends ThemeExtension<CycleColors> {
   final Color periodSoft;
   final Color fertile;
   final Color fertileSoft;
+
+  /// Estimated ovulation day. Dark enough for white text (about 8:1).
+  final Color ovulation;
   final Color todayFill;
   final Color onTodayFill;
   final Color heading;
@@ -41,6 +45,7 @@ class CycleColors extends ThemeExtension<CycleColors> {
     periodSoft: Color(0xFFFCE1EE),
     fertile: Color(0xFF9C7FEA),
     fertileSoft: Color(0xFFEDE6FD),
+    ovulation: Color(0xFF5B34B0),
     todayFill: Color(0xFF4A2378),
     onTodayFill: Colors.white,
     heading: Color(0xFF3F1F5C),
@@ -70,6 +75,7 @@ class CycleColors extends ThemeExtension<CycleColors> {
     periodSoft: Color(0xFF4A2338),
     fertile: Color(0xFFB9A2F5),
     fertileSoft: Color(0xFF34284D),
+    ovulation: Color(0xFF6F48C9),
     todayFill: Color(0xFFE8D7FF),
     onTodayFill: Color(0xFF2A1440),
     heading: Color(0xFFF6E3F0),
