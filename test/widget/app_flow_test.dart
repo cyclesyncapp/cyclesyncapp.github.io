@@ -260,10 +260,12 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.scrollUntilVisible(
-      find.text('Appearance'),
-      300,
+      find.text('Dark'),
+      200,
       scrollable: find.byType(Scrollable).first,
     );
+    await tester.ensureVisible(find.text('Dark'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Dark'));
     await tester.pumpAndSettle();
     expect(Theme.of(tester.element(find.text('Appearance'))).brightness,
