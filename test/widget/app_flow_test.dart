@@ -147,7 +147,17 @@ void main() {
     await tester.tap(find.text('Trends'));
     await tester.pumpAndSettle();
     expect(find.text('Cycle length'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Flow by period day'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('Flow by period day'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Trends'),
+      -300,
+      scrollable: find.byType(Scrollable).first,
+    );
 
     await tester.tap(find.text('Patterns'));
     await tester.pumpAndSettle();
