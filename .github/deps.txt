@@ -1,9 +1,4 @@
 # One package per line. Pushing a change here makes the "Add packages"
 # workflow run `flutter pub add` for each and commit pubspec.yaml + pubspec.lock.
-flutter_local_notifications
-timezone
-flutter_timezone
-share_plus
-path_provider
-shared_preferences
-web
+crypto
+pdf
