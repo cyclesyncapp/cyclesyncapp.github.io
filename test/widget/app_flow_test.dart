@@ -252,6 +252,29 @@ void main() {
     expect(find.textContaining('Around Sun 15 Nov'), findsOneWidget);
   });
 
+  testWidgets('appearance can be switched to dark and light', (tester) async {
+    _phone(tester);
+    await tester.pumpWidget(testApp(FakeRepository()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('More').last);
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(
+      find.text('Appearance'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.text('Dark'));
+    await tester.pumpAndSettle();
+    expect(Theme.of(tester.element(find.text('Appearance'))).brightness,
+        Brightness.dark);
+
+    await tester.tap(find.text('Light'));
+    await tester.pumpAndSettle();
+    expect(Theme.of(tester.element(find.text('Appearance'))).brightness,
+        Brightness.light);
+  });
+
   testWidgets('wide screens use a side rail', (tester) async {
     tester.view.physicalSize = const Size(1200, 900);
     tester.view.devicePixelRatio = 1.0;

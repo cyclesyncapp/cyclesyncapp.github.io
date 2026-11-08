@@ -9,6 +9,7 @@ import '../../core/lock/app_lock.dart';
 import '../../core/platform/platform_actions.dart';
 import '../../core/providers.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/theme_mode.dart';
 import '../../core/widgets/common.dart';
 import '../../core/widgets/inputs.dart';
 import '../../data/repositories/cycle_repository.dart';
@@ -151,6 +152,58 @@ class SettingsScreen extends ConsumerWidget {
                 tile(Icons.info_outline, 'About & Health Disclaimer',
                     () => context.push(AppRoutes.about),
                     color: const Color(0xFF3B6FD8)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          SoftCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    IconBubble(
+                      icon: Icons.contrast,
+                      size: 38,
+                      color: context.colors.secondary,
+                    ),
+                    const SizedBox(width: 14),
+                    Text('Appearance', style: context.text.titleSmall),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  child: SegmentedButton<ThemeMode>(
+                    segments: const [
+                      ButtonSegment(
+                        value: ThemeMode.system,
+                        icon: Icon(Icons.phone_android),
+                        label: Text('Phone'),
+                      ),
+                      ButtonSegment(
+                        value: ThemeMode.light,
+                        icon: Icon(Icons.light_mode_outlined),
+                        label: Text('Light'),
+                      ),
+                      ButtonSegment(
+                        value: ThemeMode.dark,
+                        icon: Icon(Icons.dark_mode_outlined),
+                        label: Text('Dark'),
+                      ),
+                    ],
+                    selected: {ref.watch(themeModeProvider)},
+                    showSelectedIcon: false,
+                    onSelectionChanged: (v) =>
+                        ref.read(themeModeProvider.notifier).set(v.first),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '"Phone" follows your phone\'s light or dark setting.',
+                  style: context.text.bodySmall
+                      ?.copyWith(color: context.cycle.muted),
+                ),
               ],
             ),
           ),
