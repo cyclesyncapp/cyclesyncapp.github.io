@@ -10,9 +10,10 @@ Private period and cycle tracker. Flutter (Android + web/PWA) with Supabase.
 | Phase | What | State |
 | --- | --- | --- |
 | 1 | Foundation, CI | Done |
-| 2–5 | All screens: welcome, auth, onboarding, home, calendar, logging, insights, history, settings, reminders, export, delete account | Done (beta) |
-| 6 | Web push, Add to Home Screen, new design and logo | Done (beta) |
-| 7 | Beta testing, signed APK, legal review | Next |
+| 2–5 | All screens, logging, insights, reminders, export, delete account | Done |
+| 6 | Web push, Add to Home Screen, design and logo | Done |
+| 7 | Review fixes: app lock, health profile (life stage, contraception), pain and heavy-bleeding detail, doctor PDF, long-cycle handling, safer server reminders, offline caching | Done (beta) |
+| 8 | Legal review (POPIA), signed APK, translations | Next |
 
 ## Live app
 
@@ -76,6 +77,17 @@ supabase/migrations/        SQL, applied in order
 test/unit, test/widget      tests
 .github/workflows/          CI: APK build, web build + deploy
 ```
+
+## Supabase setup order
+
+Run these in the SQL Editor, in order, once each:
+
+1. `20261108000000_initial_schema.sql`
+2. `20261108120000_full_app.sql`
+3. `20261108150000_web_push.sql` (replace `YOUR-PROJECT` first)
+4. `20261108170000_release_a_b.sql`
+
+Deploy `supabase/functions/send-reminders` with "Verify JWT" off.
 
 ## Database changes
 
