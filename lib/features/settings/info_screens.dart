@@ -125,10 +125,10 @@ class AboutScreen extends StatelessWidget {
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => context.push(AppRoutes.privacy),
                 ),
-                ListTile(
-                  leading: const Icon(Icons.gavel_outlined),
-                  title: const Text('Information Regulator (complaints)'),
-                  subtitle: const Text('inforeg.org.za'),
+                const ListTile(
+                  leading: Icon(Icons.gavel_outlined),
+                  title: Text('Information Regulator (complaints)'),
+                  subtitle: Text('inforeg.org.za'),
                 ),
                 ListTile(
                   leading: const Icon(Icons.report_outlined),

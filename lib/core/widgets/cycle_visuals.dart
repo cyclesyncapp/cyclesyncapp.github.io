@@ -17,6 +17,10 @@ IconData symptomIcon(Symptom s) => switch (s) {
       Symptom.fatigue => Icons.bedtime_outlined,
       Symptom.nausea => Icons.sick_outlined,
       Symptom.backPain => Icons.accessibility_new,
+      Symptom.pelvicPain => Icons.adjust,
+      Symptom.hotFlushes => Icons.local_fire_department_outlined,
+      Symptom.nightSweats => Icons.nights_stay_outlined,
+      Symptom.sleepProblems => Icons.bedtime_off_outlined,
       Symptom.other => Icons.more_horiz,
     };
 
