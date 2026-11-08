@@ -18,6 +18,16 @@ class AppException implements Exception {
   String toString() => message;
 }
 
+/// True when an error means the app is newer than the database
+/// (a migration has not been run yet).
+bool isSchemaOutOfDate(String? code, String message) {
+  const codes = {'PGRST204', 'PGRST202', 'PGRST205', '42703', '42883', '42P01'};
+  if (code != null && codes.contains(code)) return true;
+  final m = message.toLowerCase();
+  return m.contains('schema cache') ||
+      (m.contains('column') && m.contains('does not exist'));
+}
+
 /// Snapshot of who is signed in.
 class AuthSnapshot {
   const AuthSnapshot({this.userId, this.email, this.recovering = false});
@@ -213,6 +223,12 @@ class SupabaseCycleRepository implements CycleRepository {
     } on PostgrestException catch (e) {
       if (e.message.contains('period_overlap')) {
         throw const PeriodOverlapException();
+      }
+      if (isSchemaOutOfDate(e.code, e.message)) {
+        throw const AppException(
+          "CycleSync's database needs an update. Please ask the person who "
+          'shared the app to run the latest database update, then try again.',
+        );
       }
       throw const AppException(
         "Something went wrong saving your data. Please try again.",

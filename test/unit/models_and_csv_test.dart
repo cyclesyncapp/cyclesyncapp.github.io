@@ -1,3 +1,4 @@
+import 'package:cyclesync/data/repositories/cycle_repository.dart';
 import 'package:cyclesync/domain/csv_export.dart';
 import 'package:cyclesync/domain/models.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -79,5 +80,13 @@ void main() {
       expect(CsvExport.escape('=HYPERLINK("x")'), '"\'=HYPERLINK(""x"")"');
       expect(CsvExport.escape('-5'), "'-5");
     });
+  });
+
+  test('recognises an out-of-date database', () {
+    expect(isSchemaOutOfDate('PGRST204',
+        "Could not find the 'life_stage' column of 'profiles' in the schema cache"),
+        isTrue);
+    expect(isSchemaOutOfDate('42703', 'column "pain" does not exist'), isTrue);
+    expect(isSchemaOutOfDate('23505', 'duplicate key value'), isFalse);
   });
 }
